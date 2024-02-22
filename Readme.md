@@ -25,7 +25,7 @@ Audio Spectrum Visualization is a Python project that visualizes real-time audio
 
 3. Run the `index.bat file` (on Windows) or `index.sh` file (on macOS/Linux) to start the program :
 
-```
+```bash
 ./index.sh    # macOS/Linux
 index.bat    # Windows
 ```
