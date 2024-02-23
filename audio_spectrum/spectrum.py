@@ -7,7 +7,7 @@ import time
 
 duration = 10
 fs = 44100
-block_size = 1024
+block_size = 2048
 num_blocks = int(duration * fs / block_size)
 
 audio_queue = queue.Queue()

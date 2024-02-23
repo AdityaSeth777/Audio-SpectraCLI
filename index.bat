@@ -28,6 +28,7 @@ set /p choice=Enter your choice:
 if "%choice%"=="1" (
     echo.
     echo Starting Audio Spectrum Visualization...
+    cd audio_spectrum
     python spectrum.py
     goto :EOF
 )

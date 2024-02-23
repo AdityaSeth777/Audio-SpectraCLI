@@ -29,6 +29,7 @@ display_menu() {
     if [ "$choice" = "1" ]; then
         echo ""
         echo "Starting Audio Spectrum Visualization..."
+        cd audio_spectrum
         python spectrum.py
         exit
     elif [ "$choice" = "2" ]; then
