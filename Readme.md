@@ -19,30 +19,60 @@ Audio Spectrum Visualization is a Python project that visualizes real-time audio
 - Interactive CLI menu for easy navigation.
 - Cross-platform compatibility (works on Windows, macOS, and Linux).
 
-## Installation & Usage
+## Packaging
 
-1. Clone the repository:
+```
+Audio-SpectraCLI/
 
-   ```bash
-   git clone https://github.com/AdityaSeth777/Audio-SpectraCLI.git
-   ```
-
-2. Navigate to the project directory :
-   `cd Audio-SpectraCLI`
-
-3. Run the `index.bat file` (on Windows) or `index.sh` file (on macOS/Linux) to start the program :
-
-```bash
-./index.sh    # macOS/Linux
-index.bat    # Windows
+│   CODE_OF_CONDUCT.md
+│   Contributing.md
+│   LICENSE
+│   Readme.md
+│   requirements.txt
+│   setup.py
+│
+├───Audio_SpectraCLI
+│       main.py
+│       __init__.py
+│
+├───Audio_SpectraCLI.egg-info
+│       dependency_links.txt
+│       PKG-INFO
+│       requires.txt
+│       SOURCES.txt
+│       top_level.txt
+│
+├───build
+│   ├───bdist.win-amd64
+│   └───lib
+│       └───Audio_SpectraCLI
+│               main.py
+│               __init__.py
+│
+└───dist
+        Audio_SpectraCLI-0.1-py3-none-any.whl
+        Audio_SpectraCLI-0.1.tar.gz
 ```
 
-4. Follow the on-screen instructions to start the audio spectrum visualization or exit the program.
+## Installation & Usage
+
+1. Install using pip
+
+```
+pip install ---
+```
+
+2. Import and use modules
+
+```
+from --- import audio_visualiser
+```
 
 ---
 
 ## Upcoming Features
 
+- CLI endpoints
 - Customizable Frequency Range: Allow users to specify the frequency range to display in the spectrum.
 - Color Customization: Provide options for users to customize the colors used in the spectrum visualization.
 - Save and Export: Implement functionality to save the generated spectrum as an image file or export data for further analysis.
