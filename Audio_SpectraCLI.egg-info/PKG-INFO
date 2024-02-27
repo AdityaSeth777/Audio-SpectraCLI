@@ -1,0 +1,16 @@
+Metadata-Version: 2.1
+Name: Audio_SpectraCLI
+Version: 1.0
+Summary: AudioSpectraCLI is a command-line tool that provides real-time FFT visualization of audio spectra. It captures audio input from the microphone and displays the corresponding frequency spectrum directly in the terminal window, allowing users to monitor and analyze audio signals without the need for graphical interfaces.
+Home-page: https://github.com/AdityaSeth777/Audio-SpectraCLI
+Author: Aditya Seth
+Author-email: setha4195@gmail.com
+License: MIT
+License-File: LICENSE
+Requires-Dist: numpy
+Requires-Dist: matplotlib
+Requires-Dist: sounddevice
+Requires-Dist: tabulate
+Requires-Dist: setuptools
+Requires-Dist: twine
+Requires-Dist: wheel
