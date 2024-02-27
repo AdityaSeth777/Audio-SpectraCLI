@@ -4,6 +4,8 @@ setup(
     name='Audio_SpectraCLI',
     version='1.0',
     author="Aditya Seth",
+    long_description=open('README.md').read(),
+    long_description_content_type='text/markdown',
     packages=find_packages(),
     install_requires=[
         'numpy',
