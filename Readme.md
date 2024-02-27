@@ -55,7 +55,7 @@ pip install Audio-SpectraCLI
 2. Import and use modules
 
 ```
-from Audio-SpectraCLI import audio_visualiser
+from Audio_SpectraCLI import audio_visualizer
 ```
 
 ---
