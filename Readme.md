@@ -9,9 +9,6 @@
 
 Audio Spectrum Visualization is a Python project that visualizes real-time audio input as a spectrum using Fast Fourier Transform (FFT). It provides an interactive CLI interface for users to start the visualization and exit the program.
 
-<div center = "align">
-<img src="https://i.postimg.cc/NMFT8KV2/OIG1.jpg" width="600" height="600">
-</div>
 
 ## Features
 
@@ -29,29 +26,19 @@ Audio-SpectraCLI/
 │   LICENSE
 │   Readme.md
 │   requirements.txt
+│   setup.cfg
 │   setup.py
+│
+├───.github
+│   └───workflows
+│           python-publish.yml
 │
 ├───Audio_SpectraCLI
 │       main.py
 │       __init__.py
 │
-├───Audio_SpectraCLI.egg-info
-│       dependency_links.txt
-│       PKG-INFO
-│       requires.txt
-│       SOURCES.txt
-│       top_level.txt
-│
-├───build
-│   ├───bdist.win-amd64
-│   └───lib
-│       └───Audio_SpectraCLI
-│               main.py
-│               __init__.py
-│
-└───dist
-        Audio_SpectraCLI-0.1-py3-none-any.whl
-        Audio_SpectraCLI-0.1.tar.gz
+└───tests
+        main.py
 ```
 
 ## Installation & Usage
@@ -59,13 +46,13 @@ Audio-SpectraCLI/
 1. Install using pip
 
 ```
-pip install ---
+pip install Audio-SpectraCLI
 ```
 
 2. Import and use modules
 
 ```
-from --- import audio_visualiser
+from Audio_SpectraCLI import audio_visualizer
 ```
 
 ---
