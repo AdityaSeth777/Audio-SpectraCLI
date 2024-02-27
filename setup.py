@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='Audio_SpectraCLI',
-    version='2.0',
+    version='2.1',
     author="Aditya Seth",
     long_description=open('Readme.md').read(),
     long_description_content_type='text/markdown',
@@ -14,7 +14,8 @@ setup(
         'tabulate',
         'setuptools',
         'twine',
-        'wheel'
+        'wheel',
+        'pyaudio'
     ],
     license="MIT",
     url="https://github.com/AdityaSeth777/Audio-SpectraCLI",
