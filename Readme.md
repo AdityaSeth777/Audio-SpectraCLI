@@ -29,29 +29,19 @@ Audio-SpectraCLI/
 │   LICENSE
 │   Readme.md
 │   requirements.txt
+│   setup.cfg
 │   setup.py
+│
+├───.github
+│   └───workflows
+│           python-publish.yml
 │
 ├───Audio_SpectraCLI
 │       main.py
 │       __init__.py
 │
-├───Audio_SpectraCLI.egg-info
-│       dependency_links.txt
-│       PKG-INFO
-│       requires.txt
-│       SOURCES.txt
-│       top_level.txt
-│
-├───build
-│   ├───bdist.win-amd64
-│   └───lib
-│       └───Audio_SpectraCLI
-│               main.py
-│               __init__.py
-│
-└───dist
-        Audio_SpectraCLI-0.1-py3-none-any.whl
-        Audio_SpectraCLI-0.1.tar.gz
+└───tests
+        main.py
 ```
 
 ## Installation & Usage
