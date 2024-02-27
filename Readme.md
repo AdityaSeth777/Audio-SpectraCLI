@@ -49,13 +49,13 @@ Audio-SpectraCLI/
 1. Install using pip
 
 ```
-pip install ---
+pip install Audio-SpectraCLI
 ```
 
 2. Import and use modules
 
 ```
-from --- import audio_visualiser
+from Audio-SpectraCLI import audio_visualiser
 ```
 
 ---
