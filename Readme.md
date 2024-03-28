@@ -53,7 +53,7 @@ pip install Audio-SpectraCLI
 2. Import and use modules
 
 - Create a Python file.
-- You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/2.3/tests/main.py) as a reference or use the following code :
+- You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/3.0/tests/main.py) as a reference or use the following code :
 
 ```
 from Audio_SpectraCLI import AudioSpectrumVisualizer
