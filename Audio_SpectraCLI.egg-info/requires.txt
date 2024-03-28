@@ -1,0 +1,8 @@
+numpy
+matplotlib
+sounddevice
+tabulate
+setuptools
+twine
+wheel
+pyaudio

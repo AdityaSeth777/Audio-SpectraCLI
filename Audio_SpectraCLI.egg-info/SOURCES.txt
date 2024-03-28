@@ -1,0 +1,10 @@
+LICENSE
+setup.cfg
+setup.py
+Audio_SpectraCLI/__init__.py
+Audio_SpectraCLI/main.py
+Audio_SpectraCLI.egg-info/PKG-INFO
+Audio_SpectraCLI.egg-info/SOURCES.txt
+Audio_SpectraCLI.egg-info/dependency_links.txt
+Audio_SpectraCLI.egg-info/requires.txt
+Audio_SpectraCLI.egg-info/top_level.txt

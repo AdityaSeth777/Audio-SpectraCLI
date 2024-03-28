@@ -1,3 +1,6 @@
+# Aditya Seth
+# Description: This file contains the main code for the Audio-SpectraCLI project. It is responsible for creating the AudioSpectrumVisualizer class which is used to visualize the audio spectrum in real-time.
+
 import numpy as np
 import matplotlib.pyplot as plt
 import sounddevice as sd
