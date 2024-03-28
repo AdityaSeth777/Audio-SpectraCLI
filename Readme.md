@@ -9,11 +9,13 @@
 
 Audio Spectrum Visualization is a Python project that visualizes real-time audio input as a spectrum using Fast Fourier Transform (FFT). It provides an interactive CLI interface for users to start the visualization and exit the program.
 
-## Features
+## Current Features (with respect to 2.2)
 
-- Real-time audio spectrum visualization.
-- Interactive CLI menu for easy navigation.
-- Cross-platform compatibility (works on Windows, macOS, and Linux).
+- Real-time visualization of Fast Fourier Transform (FFT) spectrum of audio input.
+- Support for adjusting parameters such as duration, sampling rate, and block size.
+- Seamless integration with SoundDevice for audio input capture.
+- Customizable Frequency Range: Allow users to specify the frequency range to display in the spectrum.
+- Color Customization: Provide options for users to customize the colors used in the spectrum visualization.
 
 ## Packaging
 
@@ -50,15 +52,28 @@ pip install Audio-SpectraCLI
 
 2. Import and use modules
 
+- Create a Python file.
+- You can use [Example.py](./tests/main.py) as a reference or use the following code :
+
 ```
-from Audio_SpectraCLI import audio_visualizer
+from Audio_SpectraCLI import AudioSpectrumVisualizer
+
+# Creating an instance of AudioSpectrumVisualizer with custom parameters.
+audio_visualizer = AudioSpectrumVisualizer(
+    duration=5, frequency_range=(50, 5000), color='red')
+
+# Starting the audio spectrum visualization
+audio_visualizer.start_visualization()
 ```
+
+- Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code.
 
 ---
 
 ## Upcoming Features
 
-- CLI endpoints
+- CLI endpoints.
+- Option to choose between CLI/GUI.
 - Save and Export: Implement functionality to save the generated spectrum as an image file or export data for further analysis.
 - Additional Audio Effects: Integrate additional audio effects or processing options to enhance the visualization.
 
