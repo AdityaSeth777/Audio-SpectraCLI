@@ -1,3 +1,3 @@
 # __init__.py
 
-from .main import audio_visualizer
+from .main import AudioSpectrumVisualizer
