@@ -43,12 +43,6 @@ Audio-SpectraCLI/
         main.py
 ```
 
-## Installation Types:
-
-├───Using PIP <br>
-├───Using Docker <br>
-└───Using Docker locally <br>
-
 ## Installation & Usage (Using PIP)
 
 1. Install using pip
@@ -77,7 +71,7 @@ Once you have activated the audio_visualizer instance, feel free to use it where
 
 ---
 
-## Installation & Usage (Using Docker)
+## Examining & Usage for fun :D (Using Docker)
 
 1. Prerequisites
    You should have docker installed on your machine. You can download and install Docker from [here](https://www.docker.com/products/docker-desktop).
@@ -89,14 +83,20 @@ You can pull the pre-built Docker image from Docker Hub using the following comm
 docker pull adityaseth777/audio-spectracli
 ```
 
-3. Running the Docker Container
-   To run the Docker container, use the following command:
+3. Viewing Files Inside the Docker Container
+   For seeing the files inside the Docker container for debugging purposes, you can run an interactive shell session:
 
-```
-docker run --rm -it adityaseth777/audio-spectracli
+```sh
+docker run --rm -it --entrypoint /bin/bash audio-spectracli
 ```
 
-4. You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/main/tests/main.py) as a reference or use the following code :
+4. Use the 'ls' command to view the files and get a proper understanding of the file structure :
+
+```sh
+ls
+```
+
+5. You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/main/tests/main.py) as a reference or use the following code :
 
 ```
 from Audio_SpectraCLI import AudioSpectrumVisualizer
@@ -113,7 +113,7 @@ Once you have activated the audio_visualizer instance, feel free to use it where
 
 ---
 
-## Building the Docker Image Locally
+## Building the Docker Image Locally (for fun :D)
 
 If you prefer to build the Docker image locally, follow these steps:
 
@@ -130,13 +130,20 @@ cd Audio-SpectraCLI
 docker build -t audio-spectracli .
 ```
 
-3. Run the Docker container:
+3. Viewing Files Inside the Docker Container
+   For seeing the files inside the Docker container for debugging purposes, you can run an interactive shell session:
 
 ```sh
-docker run --rm -it audio-spectracli
+docker run --rm -it --entrypoint /bin/bash audio-spectracli
 ```
 
-4. You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/main/tests/main.py) as a reference or use the following code :
+4. Use the 'ls' command to view the files and get a proper understanding of the file structure :
+
+```sh
+ls
+```
+
+5. You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/main/tests/main.py) as a reference or use the following code :
 
 ```
 from Audio_SpectraCLI import AudioSpectrumVisualizer
