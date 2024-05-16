@@ -86,14 +86,14 @@ Once you have activated the audio_visualizer instance, feel free to use it where
 You can pull the pre-built Docker image from Docker Hub using the following command:
 
 ```sh
-docker pull adityaseth777/audio-spectra-cli
+docker pull adityaseth777/audio-spectracli
 ```
 
 3. Running the Docker Container
    To run the Docker container, use the following command:
 
 ```
-docker run --rm -it adityaseth777/audio-spectra-cli:latest
+docker run --rm -it adityaseth777/audio-spectracli
 ```
 
 4. You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/main/tests/main.py) as a reference or use the following code :
@@ -127,13 +127,13 @@ cd Audio-SpectraCLI
 2. Build the Docker image:
 
 ```sh
-docker build -t audio-spectra-cli .
+docker build -t audio-spectracli .
 ```
 
 3. Run the Docker container:
 
 ```sh
-docker run --rm -it audio-spectra-cli
+docker run --rm -it audio-spectracli
 ```
 
 4. You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/main/tests/main.py) as a reference or use the following code :
