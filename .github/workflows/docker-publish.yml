@@ -27,7 +27,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/audio-spectra-cli:latest
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/audio-spectracli:latest
 
       - name: Logout from Docker Hub
         run: docker logout
