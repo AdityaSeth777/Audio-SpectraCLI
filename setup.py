@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='Audio_SpectraCLI',
-    version='3.2',
+    version='4.0',
     author="Aditya Seth",
     long_description=open('Readme.md', encoding='utf-8').read(),
     long_description_content_type='text/markdown',
@@ -15,6 +15,7 @@ setup(
         'setuptools',
         'twine',
         'wheel',
+        'pyqt5',
         'pyaudio'
     ],
     license="MIT",

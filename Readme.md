@@ -7,40 +7,48 @@
                                       |_|
 ```
 
-Audio Spectrum Visualization is a Python project that visualizes real-time audio input as a spectrum using Fast Fourier Transform (FFT). It provides an interactive CLI interface for users to start the visualization and exit the program.
+## Audio Spectrum Visualization is a Python project that visualizes real-time audio input as a spectrum using Fast Fourier Transform (FFT). It provides an interactive CLI interface for users to start the visualization and exit the program.
 
-## Current Features (with respect to 3.2)
+#### Notable point : From v4.0, I have implemented a whole new code using PyQt5, which you will find evident here in the new main default code - ['main.py'](./Audio_SpectraCLI/main.py) and the ['test.py'](./tests/test.py) case supporting that.
+
+#### The ['main-old.py'](./Audio_SpectraCLI/main-old.py), which is the code for the main file for v3.2, and the ['test-old.py'](./tests/test-old.py) case supporting that, is DEPRECATED.
+
+## Current Features (with respect to 4.0)
 
 - Real-time visualization of Fast Fourier Transform (FFT) spectrum of audio input.
 - Support for adjusting parameters such as duration, sampling rate, and block size.
 - Seamless integration with SoundDevice for audio input capture.
 - Customizable Frequency Range: Allow users to specify the frequency range to display in the spectrum.
 - Color Customization: Provide options for users to customize the colors used in the spectrum visualization.
+- Added PyQt5 modules that enables user input for Duration (in seconds), Sampling Rate (in Hz), and Block Size.
+- Much more dynamic and user-controlled interface.
 
 ## Packaging
 
 ```
 Audio-SpectraCLI/
 
-│   CODE_OF_CONDUCT.md
-│   Contributing.md
-│   Dockerfile
-│   LICENSE
-│   Readme.md
-│   requirements.txt
-│   setup.cfg
-│   setup.py
-│
-├───.github
-│   └───workflows
-│           python-publish.yml
-│
-├───Audio_SpectraCLI
-│       main.py
-│       __init__.py
-│
-└───tests
-        main.py
+├── .gitignore
+├── CODE_OF_CONDUCT.md
+├── Contributing.md
+├── Dockerfile
+├── LICENSE
+├── Readme.md
+├── requirements.txt
+├── setup.cfg
+├── setup.py
+├── .github/
+│   └── workflows/
+│       ├── docker-publish.yml
+│       ├── label.yml
+│       └── python-publish.yml
+├── Audio_SpectraCLI/
+│   ├── main-old.py
+│   ├── main.py
+│   └── __init__.py
+└── tests/
+    ├── test-old.py
+    └── test.py
 ```
 
 ## Installation & Usage (Using PIP)
@@ -54,20 +62,25 @@ pip install Audio-SpectraCLI
 2. Import and use modules
 
 - Create a Python file.
-- You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/main/tests/main.py) as a reference or use the following code :
+- You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/main/tests/test.py) as a reference or use the following code :
 
 ```
 from Audio_SpectraCLI import AudioSpectrumVisualizer
+from PyQt5.QtWidgets import QApplication
 
-# Creating an instance of AudioSpectrumVisualizer with custom parameters.
+# Creating an instance of AudioSpectrumVisualizer with custom parameters
+app = QApplication([])
 audio_visualizer = AudioSpectrumVisualizer(
-    duration=5, frequency_range=(50, 5000), color='red')
+    duration=10, fs=22050, block_size=8192, frequency_range=(2000, 5000), color='green')
 
 # Starting the audio spectrum visualization
+audio_visualizer.show()
 audio_visualizer.start_visualization()
+app.exec_()
+
 ```
 
-Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code.
+Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v4.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/4.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
 
 ---
 
@@ -96,20 +109,24 @@ docker run --rm -it --entrypoint /bin/bash audio-spectracli
 ls
 ```
 
-5. You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/main/tests/main.py) as a reference or use the following code :
+5. You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/main/tests/test.py) as a reference or use the following code :
 
 ```
 from Audio_SpectraCLI import AudioSpectrumVisualizer
+from PyQt5.QtWidgets import QApplication
 
-# Creating an instance of AudioSpectrumVisualizer with custom parameters.
+# Creating an instance of AudioSpectrumVisualizer with custom parameters
+app = QApplication([])
 audio_visualizer = AudioSpectrumVisualizer(
-    duration=5, frequency_range=(50, 5000), color='red')
+    duration=10, fs=22050, block_size=8192, frequency_range=(2000, 5000), color='green')
 
 # Starting the audio spectrum visualization
+audio_visualizer.show()
 audio_visualizer.start_visualization()
+app.exec_()
 ```
 
-Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code.
+Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v4.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/4.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
 
 ---
 
@@ -143,38 +160,36 @@ docker run --rm -it --entrypoint /bin/bash audio-spectracli
 ls
 ```
 
-5. You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/main/tests/main.py) as a reference or use the following code :
+5. You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/main/tests/test.py) as a reference or use the following code :
 
 ```
 from Audio_SpectraCLI import AudioSpectrumVisualizer
+from PyQt5.QtWidgets import QApplication
 
-# Creating an instance of AudioSpectrumVisualizer with custom parameters.
+# Creating an instance of AudioSpectrumVisualizer with custom parameters
+app = QApplication([])
 audio_visualizer = AudioSpectrumVisualizer(
-    duration=5, frequency_range=(50, 5000), color='red')
+    duration=10, fs=22050, block_size=8192, frequency_range=(2000, 5000), color='green')
 
 # Starting the audio spectrum visualization
+audio_visualizer.show()
 audio_visualizer.start_visualization()
+app.exec_()
 ```
 
-Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code.
+Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v4.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/4.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
 
 ## Upcoming Features
 
+- Save and Export: Implement functionality to save the generated spectrum as an image file or export data for further analysis.
 - CLI endpoints.
 - Option to choose between CLI/GUI.
-- Save and Export: Implement functionality to save the generated spectrum as an image file or export data for further analysis.
-- Additional Audio Effects: Integrate additional audio effects or processing options to enhance the visualization.
 
 ---
 
 ## For contributing
 
 Check the [Contributing page.](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/main/Contributing.md)
-Make sure to PR your changes in the development branch.
-
-## .env file
-
-This file contains various environment variables that you can configure.
 
 ## License
 
