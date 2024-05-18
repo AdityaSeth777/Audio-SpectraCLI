@@ -5,3 +5,4 @@ tabulate
 setuptools
 twine
 wheel
+pyqt5
