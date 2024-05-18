@@ -30,8 +30,6 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.spectrum = np.zeros(self.block_size)
 
         self.setup_ui()
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.process_audio)
 
     def setup_ui(self):
         self.central_widget = QWidget()
@@ -73,7 +71,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.layout.addWidget(QLabel('Block Size:'))
         self.layout.addWidget(self.block_size_slider)
 
-        self.start_button = QPushButton('Start Visualization')
+        self.start_button = QPushButton('End Visualization')
         self.start_button.clicked.connect(self.start_visualization)
         self.layout.addWidget(self.start_button)
 
@@ -85,19 +83,20 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.audio_queue.put(indata.copy())
 
     def process_audio(self):
-        if not self.audio_queue.empty():
-            audio_block = self.audio_queue.get()
-            self.spectrum = np.abs(np.fft.fft(
-                audio_block[:, 0], n=self.block_size))
-            self.update_plot()
+        while True:
+            if not self.audio_queue.empty():
+                audio_block = self.audio_queue.get()
+                spectrum = np.abs(np.fft.fft(
+                    audio_block[:, 0], n=self.block_size))
+                max_magnitude = np.max(spectrum)
+                self.update_plot(spectrum, max_magnitude)
 
-    def update_plot(self):
+    def update_plot(self, spectrum, max_magnitude):
         freq_bins = np.fft.fftfreq(self.block_size, 1 / self.fs)
-        max_magnitude = np.max(self.spectrum)
         self.ax.clear()
-        self.ax.plot(freq_bins, self.spectrum, color=self.color)
+        self.ax.plot(freq_bins, spectrum, color=self.color)
         self.ax.set_xlim(self.frequency_range)
-        self.ax.set_ylim(0, max_magnitude * 1.1)
+        self.ax.set_ylim(0, max_magnitude * 1.8)
         self.ax.set_xlabel('Frequency (Hz)')
         self.ax.set_ylabel('Magnitude')
         self.ax.set_title('Audio Spectrum Visualization')
@@ -113,16 +112,14 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.block_size = value
 
     def start_visualization(self):
-        audio_thread = threading.Thread(target=self.process_audio, daemon=True)
-        audio_thread.start()
         sd.default.samplerate = self.fs
         sd.default.channels = 1
         self.stream = sd.InputStream(callback=self.audio_callback)
         self.stream.start()
-        self.timer.start(30)  # Update every 30 milliseconds
+        audio_thread = threading.Thread(target=self.process_audio, daemon=True)
+        audio_thread.start()
 
     def closeEvent(self, event):
-        self.timer.stop()
         self.stream.stop()
         self.stream.close()
         event.accept()
