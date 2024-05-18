@@ -9,9 +9,9 @@
 
 ## Audio Spectrum Visualization is a Python project that visualizes real-time audio input as a spectrum using Fast Fourier Transform (FFT). It provides an interactive CLI interface for users to start the visualization and exit the program.
 
-#### Notable point : From v4.0, I have implemented a whole new code using PyQt5, which you will find evident here in the new main default code - ['main.py'](./Audio_SpectraCLI/main.py) and the ['test.py'](./tests/test.py) case supporting that.
+#### Notable point : From v4.0, I have implemented a whole new code using PyQt5, which you will find evident here in the new main default code - [&#39;main.py&#39;](./Audio_SpectraCLI/main.py) and the [&#39;test.py&#39;](./tests/test.py) case supporting that.
 
-#### The ['main-old.py'](./Audio_SpectraCLI/main-old.py), which is the code for the main file for v3.2, and the ['test-old.py'](./tests/test-old.py) case supporting that, is DEPRECATED.
+#### The [&#39;main-old.py&#39;](./Audio_SpectraCLI/main-old.py), which is the code for the main file for v3.2, and the [&#39;test-old.py&#39;](./tests/test-old.py) case supporting that, is DEPRECATED.
 
 ## Current Features (with respect to 4.0)
 
@@ -201,13 +201,14 @@ I will be improving this project.
 
 ## Where to contact ?
 
-Contact: [contact@adityaseth.in]
+Contact: [contact@adityaseth.in](mailto:contact@adityaseth.in?subject=Email%20owing%20to%20adityaseth.in&body=Greetings%2C%0AI%20am%20%5Bname%5D.%20I%20just%20came%20across%20your%20website%20and%20was%20hoping%20to%20talk%20to%20you%20about%20something.)
 
 ## 🙋‍♂️ Support
 
-💙 If you like this project, give it a ⭐ and share it with friends!`<br><br>`
-[☕ Buy me a coffee](https://www.buymeacoffee.com/adityaseth)
+💙 If you like this project, give it a ⭐ and share it with friends! <br><br>
+
+[<img width="200" height="70" src="https://i.postimg.cc/R0cqPmDf/bmc-button.png" alt="buymeacoffee">](https://www.buymeacoffee.com/adityaseth)
 
 ---
 
-Made with ❤️
+# Made with <img width="40" height="40" src="https://img.icons8.com/clouds/100/love-circled.png" alt="love-circled"/> and <img width="40" height="40" src="https://img.icons8.com/clouds/100/python.png" alt="python"/>
