@@ -14,7 +14,7 @@ from matplotlib.figure import Figure
 
 
 class AudioSpectrumVisualizer(QMainWindow):
-    def __init__(self, duration=10, fs=44100, block_size=2048, frequency_range=(20, 20000), color='blue'):
+    def __init__(self, duration=10, fs=44100, block_size=4096, frequency_range=(20, 20000), color='blue'):
         super().__init__()
         self.setWindowTitle('Audio Spectrum Visualizer')
         self.setGeometry(100, 100, 800, 600)
@@ -64,7 +64,7 @@ class AudioSpectrumVisualizer(QMainWindow):
 
         self.block_size_slider = QSlider(Qt.Horizontal)
         self.block_size_slider.setMinimum(256)
-        self.block_size_slider.setMaximum(4096)
+        self.block_size_slider.setMaximum(8192)
         self.block_size_slider.setValue(self.block_size)
         self.block_size_slider.setTickInterval(512)
         self.block_size_slider.setTickPosition(QSlider.TicksBelow)
@@ -116,7 +116,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         sd.default.channels = 1
         self.stream = sd.InputStream(callback=self.audio_callback)
         self.stream.start()
-        self.timer.start(100)
+        self.timer.start(30)  # Update every 30 milliseconds
 
     def closeEvent(self, event):
         self.timer.stop()
