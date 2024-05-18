@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sounddevice as sd
 import queue
+import threading
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QSlider
 from PyQt5.QtCore import Qt, QTimer
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -112,6 +113,8 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.block_size = value
 
     def start_visualization(self):
+        audio_thread = threading.Thread(target=self.process_audio, daemon=True)
+        audio_thread.start()
         sd.default.samplerate = self.fs
         sd.default.channels = 1
         self.stream = sd.InputStream(callback=self.audio_callback)
