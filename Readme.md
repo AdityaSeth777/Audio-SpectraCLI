@@ -7,7 +7,7 @@
                                       |_|
 ```
 
-## Audio Spectrum Visualization is a Python project that visualizes real-time audio input as a spectrum using Fast Fourier Transform (FFT). It provides an interactive CLI interface for users to start the visualization and exit the program.
+## Audio Spectrum Visualization is a Python project that visualizes real-time audio input as a spectrum using Fast Fourier Transform (FFT). It provides an interactive and dynamic interface for users to start the visualization and exit the program.
 
 #### Notable point : From v4.0, I have implemented a whole new code using PyQt5, which you will find evident here in the new main default code - [&#39;main.py&#39;](./Audio_SpectraCLI/main.py) and the [&#39;test.py&#39;](./tests/test.py) case supporting that.
 
@@ -64,7 +64,7 @@ pip install Audio-SpectraCLI
 - Create a Python file.
 - You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/main/tests/test.py) as a reference or use the following code :
 
-```
+```python
 from Audio_SpectraCLI import AudioSpectrumVisualizer
 from PyQt5.QtWidgets import QApplication
 
@@ -77,7 +77,6 @@ audio_visualizer = AudioSpectrumVisualizer(
 audio_visualizer.show()
 audio_visualizer.start_visualization()
 app.exec_()
-
 ```
 
 Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v4.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/4.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
@@ -111,7 +110,7 @@ ls
 
 5. You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/main/tests/test.py) as a reference or use the following code :
 
-```
+```python
 from Audio_SpectraCLI import AudioSpectrumVisualizer
 from PyQt5.QtWidgets import QApplication
 
@@ -162,7 +161,7 @@ ls
 
 5. You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/main/tests/test.py) as a reference or use the following code :
 
-```
+```python
 from Audio_SpectraCLI import AudioSpectrumVisualizer
 from PyQt5.QtWidgets import QApplication
 
