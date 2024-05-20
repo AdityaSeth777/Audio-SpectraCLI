@@ -9,11 +9,26 @@
 
 ## Audio Spectrum Visualization is a Python project that visualizes real-time audio input as a spectrum using Fast Fourier Transform (FFT). It provides an interactive and dynamic interface for users to start the visualization and exit the program.
 
-<iframe style="border: none;" src="https://cards.producthunt.com/cards/posts/458166?v=1" width="500" height="405" frameborder="0" scrolling="no" allowfullscreen></iframe>
+ <p>
 
-#### Notable point : From v4.0, I have implemented a whole new code using PyQt5, which you will find evident here in the new main default code - [&#39;main.py&#39;](./Audio_SpectraCLI/main.py) and the [&#39;test.py&#39;](./tests/test.py) case supporting that.
+![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat)
+[![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FAdityaSeth777%2FAudio-SpectraCLI&label=Visitors&countColor=%23263759&style=plastic)](https://visitorbadge.io/status?path=https%3A%2F%2Fgithub.com%2FAdityaSeth777%2FAudio-SpectraCLI)
+![GitHub forks](https://img.shields.io/github/forks/AdityaSeth777/Audio-SpectraCLI)
+![GitHub Repo stars](https://img.shields.io/github/stars/AdityaSeth777/Audio-SpectraCLI)
+![GitHub last commit](https://img.shields.io/github/last-commit/AdityaSeth777/Audio-SpectraCLI)
+![GitHub repo size](https://img.shields.io/github/repo-size/AdityaSeth777/Audio-SpectraCLI)
+![GitHub issues](https://img.shields.io/github/issues/AdityaSeth777/Audio-SpectraCLI)
+![GitHub closed issues](https://img.shields.io/github/issues-closed-raw/AdityaSeth777/Audio-SpectraCLI)
+![GitHub pull requests](https://img.shields.io/github/issues-pr/AdityaSeth777/Audio-SpectraCLI)
+![GitHub closed pull requests](https://img.shields.io/github/issues-pr-closed/AdityaSeth777/Audio-SpectraCLI)
 
-#### The [&#39;main-old.py&#39;](./Audio_SpectraCLI/main-old.py), which is the code for the main file for v3.2, and the [&#39;test-old.py&#39;](./tests/test-old.py) case supporting that, is DEPRECATED.
+ </p>
+
+<a href="https://www.producthunt.com/posts/audio-spectracli?utm_source=badge-featured&utm_medium=badge&utm_souce=badge-audio&#0045;spectracli" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=458166&theme=light" alt="Audio&#0045;SpectraCLI - Visualizing&#0032;real&#0045;time&#0032;audio&#0032;input&#0032;as&#0032;a&#0032;spectrum&#0032;using&#0032;FFT | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+
+### Notable point : From v4.0, I have implemented a whole new code using PyQt5, which you will find evident here in the new main default code - [&#39;main.py&#39;](./Audio_SpectraCLI/main.py) and the [&#39;test.py&#39;](./tests/test.py) case supporting that.
+
+### The [&#39;main-old.py&#39;](./Audio_SpectraCLI/main-old.py), which is the code for the main file for v3.2, and the [&#39;test-old.py&#39;](./tests/test-old.py) case supporting that, is DEPRECATED.
 
 ## Current Features (with respect to 4.0)
 
