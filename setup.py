@@ -18,6 +18,6 @@ setup(
         'pyqt5',
         'pyaudio'
     ],
-    license="MIT",
+    license="Apache License 2.0",
     url="https://github.com/AdityaSeth777/Audio-SpectraCLI",
 )
