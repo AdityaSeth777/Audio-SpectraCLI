@@ -9,6 +9,8 @@
 
 ## Audio Spectrum Visualization is a Python project that visualizes real-time audio input as a spectrum using Fast Fourier Transform (FFT). It provides an interactive and dynamic interface for users to start the visualization and exit the program.
 
+<iframe style="border: none;" src="https://cards.producthunt.com/cards/posts/458166?v=1" width="500" height="405" frameborder="0" scrolling="no" allowfullscreen></iframe>
+
 #### Notable point : From v4.0, I have implemented a whole new code using PyQt5, which you will find evident here in the new main default code - [&#39;main.py&#39;](./Audio_SpectraCLI/main.py) and the [&#39;test.py&#39;](./tests/test.py) case supporting that.
 
 #### The [&#39;main-old.py&#39;](./Audio_SpectraCLI/main-old.py), which is the code for the main file for v3.2, and the [&#39;test-old.py&#39;](./tests/test-old.py) case supporting that, is DEPRECATED.
