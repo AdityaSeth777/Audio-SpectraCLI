@@ -91,7 +91,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         while self.running:
             if not self.audio_queue.empty():
                 audio_block = self.audio_queue.get()
-                spectrum = np.abs(np.fft.fft(
+                spectrum = np.abs(np.fft.rfft(
                     audio_block[:, 0], n=self.block_size))
                 spectrum = gaussian_filter1d(
                     spectrum, sigma=2)  # Apply smoothing filter
@@ -101,11 +101,11 @@ class AudioSpectrumVisualizer(QMainWindow):
                     self.update_plot(spectrum, max_magnitude)
 
     def update_plot(self, spectrum, max_magnitude):
-        freq_bins = np.fft.fftfreq(self.block_size, 1 / self.fs)
+        freq_bins = np.fft.rfftfreq(self.block_size, 1 / self.fs)
         self.ax.clear()
         self.ax.plot(freq_bins, spectrum, color=self.color)
         self.ax.set_xlim(self.frequency_range)
-        self.ax.set_ylim(0, max_magnitude * 1.8)
+        self.ax.set_ylim(0, max_magnitude * 0.5)
         self.ax.set_xlabel('Frequency (Hz)')
         self.ax.set_ylabel('Magnitude')
         self.ax.set_title('Audio Spectrum Visualization')
