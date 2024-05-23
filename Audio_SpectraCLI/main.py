@@ -8,8 +8,9 @@ import matplotlib.pyplot as plt
 import sounddevice as sd
 import queue
 import threading
+from scipy.ndimage import gaussian_filter1d
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QSlider
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
@@ -28,6 +29,8 @@ class AudioSpectrumVisualizer(QMainWindow):
 
         self.audio_queue = queue.Queue()
         self.spectrum = np.zeros(self.block_size)
+
+        self.noise_threshold = 10  # Adjust as needed for noise level
 
         self.setup_ui()
         self.running = False
@@ -89,8 +92,11 @@ class AudioSpectrumVisualizer(QMainWindow):
                 audio_block = self.audio_queue.get()
                 spectrum = np.abs(np.fft.fft(
                     audio_block[:, 0], n=self.block_size))
+                spectrum = gaussian_filter1d(
+                    spectrum, sigma=2)  # Apply smoothing filter
                 max_magnitude = np.max(spectrum)
-                self.update_plot(spectrum, max_magnitude)
+                if max_magnitude > self.noise_threshold:
+                    self.update_plot(spectrum, max_magnitude)
 
     def update_plot(self, spectrum, max_magnitude):
         freq_bins = np.fft.fftfreq(self.block_size, 1 / self.fs)
@@ -127,7 +133,7 @@ class AudioSpectrumVisualizer(QMainWindow):
             audio_thread = threading.Thread(
                 target=self.process_audio, daemon=True)
             audio_thread.start()
-            self.start_button.setText('Pause Visualization')
+            self.start_button.setText('Stop Visualization')
 
     def closeEvent(self, event):
         self.running = False

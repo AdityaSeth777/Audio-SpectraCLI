@@ -8,5 +8,4 @@ audio_visualizer = AudioSpectrumVisualizer(
 
 # Start the audio spectrum visualization
 audio_visualizer.show()
-audio_visualizer.toggle_visualization()
 app.exec_()
