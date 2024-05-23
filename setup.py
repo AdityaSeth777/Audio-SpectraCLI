@@ -16,6 +16,7 @@ setup(
         'twine',
         'wheel',
         'pyqt5',
+        'scipy',
         'pyaudio'
     ],
     license="Apache License 2.0",

@@ -6,3 +6,4 @@ setuptools
 twine
 wheel
 pyqt5
+scipy
