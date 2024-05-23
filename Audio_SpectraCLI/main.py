@@ -105,7 +105,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.ax.clear()
         self.ax.plot(freq_bins, spectrum, color=self.color)
         self.ax.set_xlim(self.frequency_range)
-        self.ax.set_ylim(0, max_magnitude * 0.5)
+        self.ax.set_ylim(0, max_magnitude * 1.8)
         self.ax.set_xlabel('Frequency (Hz)')
         self.ax.set_ylabel('Magnitude')
         self.ax.set_title('Audio Spectrum Visualization')
