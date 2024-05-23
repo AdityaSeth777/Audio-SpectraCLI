@@ -1,12 +1,12 @@
 from Audio_SpectraCLI import AudioSpectrumVisualizer
 from PyQt5.QtWidgets import QApplication
 
-# Creating an instance of AudioSpectrumVisualizer with custom parameters
+# Create an instance of AudioSpectrumVisualizer with custom parameters
 app = QApplication([])
 audio_visualizer = AudioSpectrumVisualizer(
-    duration=10, fs=22050, block_size=8192, frequency_range=(2000, 5000), color='green')
+    duration=5, fs=22050, block_size=1024, frequency_range=(50, 5000), color='red')
 
-# Starting the audio spectrum visualization
+# Start the audio spectrum visualization
 audio_visualizer.show()
-audio_visualizer.start_visualization()
+audio_visualizer.toggle_visualization()
 app.exec_()

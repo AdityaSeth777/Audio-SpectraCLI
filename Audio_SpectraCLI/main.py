@@ -9,7 +9,7 @@ import sounddevice as sd
 import queue
 import threading
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QSlider
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
@@ -30,6 +30,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.spectrum = np.zeros(self.block_size)
 
         self.setup_ui()
+        self.running = False
 
     def setup_ui(self):
         self.central_widget = QWidget()
@@ -71,8 +72,8 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.layout.addWidget(QLabel('Block Size:'))
         self.layout.addWidget(self.block_size_slider)
 
-        self.start_button = QPushButton('End Visualization')
-        self.start_button.clicked.connect(self.start_visualization)
+        self.start_button = QPushButton('Start Visualization')
+        self.start_button.clicked.connect(self.toggle_visualization)
         self.layout.addWidget(self.start_button)
 
         self.central_widget.setLayout(self.layout)
@@ -83,7 +84,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.audio_queue.put(indata.copy())
 
     def process_audio(self):
-        while True:
+        while self.running:
             if not self.audio_queue.empty():
                 audio_block = self.audio_queue.get()
                 spectrum = np.abs(np.fft.fft(
@@ -111,17 +112,28 @@ class AudioSpectrumVisualizer(QMainWindow):
     def set_block_size(self, value):
         self.block_size = value
 
-    def start_visualization(self):
-        sd.default.samplerate = self.fs
-        sd.default.channels = 1
-        self.stream = sd.InputStream(callback=self.audio_callback)
-        self.stream.start()
-        audio_thread = threading.Thread(target=self.process_audio, daemon=True)
-        audio_thread.start()
+    def toggle_visualization(self):
+        if self.running:
+            self.running = False
+            self.stream.stop()
+            self.stream.close()
+            self.start_button.setText('Start Visualization')
+        else:
+            self.running = True
+            sd.default.samplerate = self.fs
+            sd.default.channels = 1
+            self.stream = sd.InputStream(callback=self.audio_callback)
+            self.stream.start()
+            audio_thread = threading.Thread(
+                target=self.process_audio, daemon=True)
+            audio_thread.start()
+            self.start_button.setText('Pause Visualization')
 
     def closeEvent(self, event):
-        self.stream.stop()
-        self.stream.close()
+        self.running = False
+        if hasattr(self, 'stream'):
+            self.stream.stop()
+            self.stream.close()
         event.accept()
 
 
