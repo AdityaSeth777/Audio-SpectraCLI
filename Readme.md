@@ -37,7 +37,7 @@
 - Seamless integration with SoundDevice for audio input capture.
 - Customizable Frequency Range: Allow users to specify the frequency range to display in the spectrum.
 - Color Customization: Provide options for users to customize the colors used in the spectrum visualization.
-- Added PyQt5 modules that enables user input for Duration (in seconds), Sampling Rate (in Hz), and Block Size.
+- Added PyQt5 modules and a Gaussian filter that enables user input for Duration (in seconds), Sampling Rate (in Hz), Block Size, and also smoothens the output.
 - Much more dynamic and user-controlled interface.
 
 ## Packaging
@@ -88,11 +88,10 @@ from PyQt5.QtWidgets import QApplication
 # Creating an instance of AudioSpectrumVisualizer with custom parameters
 app = QApplication([])
 audio_visualizer = AudioSpectrumVisualizer(
-    duration=10, fs=22050, block_size=8192, frequency_range=(2000, 5000), color='green')
+    duration=5, fs=22050, block_size=1024, frequency_range=(1000, 5000), color='red')
 
 # Starting the audio spectrum visualization
 audio_visualizer.show()
-audio_visualizer.start_visualization()
 app.exec_()
 ```
 
@@ -134,11 +133,10 @@ from PyQt5.QtWidgets import QApplication
 # Creating an instance of AudioSpectrumVisualizer with custom parameters
 app = QApplication([])
 audio_visualizer = AudioSpectrumVisualizer(
-    duration=10, fs=22050, block_size=8192, frequency_range=(2000, 5000), color='green')
+    duration=5, fs=22050, block_size=1024, frequency_range=(1000, 5000), color='red')
 
 # Starting the audio spectrum visualization
 audio_visualizer.show()
-audio_visualizer.start_visualization()
 app.exec_()
 ```
 
@@ -185,11 +183,10 @@ from PyQt5.QtWidgets import QApplication
 # Creating an instance of AudioSpectrumVisualizer with custom parameters
 app = QApplication([])
 audio_visualizer = AudioSpectrumVisualizer(
-    duration=10, fs=22050, block_size=8192, frequency_range=(2000, 5000), color='green')
+    duration=5, fs=22050, block_size=1024, frequency_range=(1000, 5000), color='red')
 
 # Starting the audio spectrum visualization
 audio_visualizer.show()
-audio_visualizer.start_visualization()
 app.exec_()
 ```
 
