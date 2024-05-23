@@ -30,10 +30,11 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.audio_queue = queue.Queue()
         self.spectrum = np.zeros(self.block_size)
 
-        self.noise_threshold = 10  # Adjust as needed for noise level
+        self.noise_threshold = 0.05  # Adjusted for lower noise level
+        self.running = False
+        self.stream = None
 
         self.setup_ui()
-        self.running = False
 
     def setup_ui(self):
         self.central_widget = QWidget()
@@ -95,6 +96,7 @@ class AudioSpectrumVisualizer(QMainWindow):
                 spectrum = gaussian_filter1d(
                     spectrum, sigma=2)  # Apply smoothing filter
                 max_magnitude = np.max(spectrum)
+                print(f'Max magnitude: {max_magnitude}')  # Debugging print
                 if max_magnitude > self.noise_threshold:
                     self.update_plot(spectrum, max_magnitude)
 
@@ -103,7 +105,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.ax.clear()
         self.ax.plot(freq_bins, spectrum, color=self.color)
         self.ax.set_xlim(self.frequency_range)
-        self.ax.set_ylim(0, max_magnitude * 1.8)
+        self.ax.set_ylim(0, max_magnitude * 0.5)
         self.ax.set_xlabel('Frequency (Hz)')
         self.ax.set_ylabel('Magnitude')
         self.ax.set_title('Audio Spectrum Visualization')
@@ -121,8 +123,9 @@ class AudioSpectrumVisualizer(QMainWindow):
     def toggle_visualization(self):
         if self.running:
             self.running = False
-            self.stream.stop()
-            self.stream.close()
+            if self.stream is not None:
+                self.stream.stop()
+                self.stream.close()
             self.start_button.setText('Start Visualization')
         else:
             self.running = True
@@ -137,7 +140,7 @@ class AudioSpectrumVisualizer(QMainWindow):
 
     def closeEvent(self, event):
         self.running = False
-        if hasattr(self, 'stream'):
+        if self.stream is not None:
             self.stream.stop()
             self.stream.close()
         event.accept()
