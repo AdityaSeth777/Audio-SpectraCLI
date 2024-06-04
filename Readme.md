@@ -30,7 +30,7 @@
 
 ### The [&#39;main-old.py&#39;](./Audio_SpectraCLI/main-old.py), which is the code for the main file for v3.2, and the [&#39;test-old.py&#39;](./tests/test-old.py) case supporting that, is DEPRECATED.
 
-## Current Features (with respect to 4.0)
+## Current Features (with respect to 4.0.1)
 
 - Real-time visualization of Fast Fourier Transform (FFT) spectrum of audio input.
 - Support for adjusting parameters such as duration, sampling rate, and block size.
@@ -38,6 +38,7 @@
 - Customizable Frequency Range: Allow users to specify the frequency range to display in the spectrum.
 - Color Customization: Provide options for users to customize the colors used in the spectrum visualization.
 - Added PyQt5 modules and a Gaussian filter that enables user input for Duration (in seconds), Sampling Rate (in Hz), Block Size, and also smoothens the output.
+- Might need to keep in mind that the Gaussian filter is too strong and it won't recognise any noise and display it's spectra. Only actual input through mic such as conversations and music are displayed which can be categorised as real inputs or audio, and of course in real time.
 - Much more dynamic and user-controlled interface.
 
 ## Packaging
