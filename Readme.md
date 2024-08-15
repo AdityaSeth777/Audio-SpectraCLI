@@ -69,7 +69,11 @@ Audio-SpectraCLI/
     └── test.py
 ```
 
-## Installation & Usage (Using PIP)
+## Installation Methods :
+
+<details>
+
+<summary> Installation & Usage (Using PIP)</summary>
 
 1. Install using pip
 
@@ -100,7 +104,13 @@ Once you have activated the audio_visualizer instance, feel free to use it where
 
 ---
 
-## Examining & Usage for fun :D (Using Docker)
+</details>
+
+---
+
+<details>
+
+<summary> Examining & Usage (Using Docker) </summary>
 
 1. Prerequisites
    You should have docker installed on your machine. You can download and install Docker from [here](https://www.docker.com/products/docker-desktop).
@@ -145,7 +155,13 @@ Once you have activated the audio_visualizer instance, feel free to use it where
 
 ---
 
-## Building the Docker Image Locally (for fun :D)
+</details>
+
+---
+
+<details>
+
+<summary> Building the Docker Image Locally </summary>
 
 If you prefer to build the Docker image locally, follow these steps:
 
@@ -192,6 +208,8 @@ app.exec_()
 ```
 
 Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v4.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/4.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
+
+</details>
 
 ## Upcoming Features
 
