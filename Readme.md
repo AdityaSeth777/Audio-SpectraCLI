@@ -73,9 +73,9 @@ Audio-SpectraCLI/
 
 <details>
 
-<summary> Installation & Usage (Using PIP)</summary>
+<summary> Installation & Usage (Using PIP on Windows)</summary>
 
-1. Install using pip
+1. Install using pip (try pip3 instead of pip if doesn't work.)
 
 ```
 pip install Audio-SpectraCLI
@@ -109,6 +109,44 @@ Once you have activated the audio_visualizer instance, feel free to use it where
 ---
 
 <details>
+
+<details>
+
+<summary> Installation & Usage (Using Brew on MacOS)</summary>
+
+1. Install using pip and homebrew ((try pip3 instead of pip if doesn't work.))
+
+```
+brew install pyaudio
+pip install Audio-SpectraCLI
+```
+
+2. Import and use modules
+
+- Create a Python file.
+- You can use [Example.py](https://github.com/AdityaSeth777/Audio-SpectraCLI/blob/main/tests/test.py) as a reference or use the following code :
+
+```python
+from Audio_SpectraCLI import AudioSpectrumVisualizer
+from PyQt5.QtWidgets import QApplication
+
+# Creating an instance of AudioSpectrumVisualizer with custom parameters
+app = QApplication([])
+audio_visualizer = AudioSpectrumVisualizer(
+    duration=5, fs=22050, block_size=1024, frequency_range=(1000, 5000), color='red')
+
+# Starting the audio spectrum visualization
+audio_visualizer.show()
+app.exec_()
+```
+
+Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v4.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/4.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
+
+---
+
+</details>
+
+---
 
 <summary> Examining & Usage (Using Docker) </summary>
 
