@@ -75,7 +75,7 @@ Audio-SpectraCLI/
 
 <summary> Installation & Usage (Using PIP on Windows)</summary>
 
-1. Install using pip (try pip3 instead of pip if doesn't work.)
+1. Install using pip (Use pip3 instead, if pip doesn't work.)
 
 ```
 pip install Audio-SpectraCLI
@@ -110,11 +110,9 @@ Once you have activated the audio_visualizer instance, feel free to use it where
 
 <details>
 
-<details>
+<summary> Installation & Usage (Using Homebrew and pip on MacOS)</summary>
 
-<summary> Installation & Usage (Using Brew on MacOS)</summary>
-
-1. Install using pip and homebrew ((try pip3 instead of pip if doesn't work.))
+1. Install using pip (Use pip3 instead, if pip doesn't work.)
 
 ```
 brew install pyaudio
@@ -146,7 +144,10 @@ Once you have activated the audio_visualizer instance, feel free to use it where
 
 </details>
 
+
 ---
+
+<details>
 
 <summary> Examining & Usage (Using Docker) </summary>
 
