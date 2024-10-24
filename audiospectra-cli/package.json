@@ -9,15 +9,31 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onCommand:extension.addSpectraCode",
+    "onCommand:extension.viewSpectraCLIStatus"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "audiospectra-cli.helloWorld",
-        "title": "Hello World"
+        "command": "extension.addSpectraCode",
+        "title": "Add Audio-SpectraCLI Code"
+      },
+      {
+        "command": "extension.viewSpectraCLIStatus",
+        "title": "View Audio-SpectraCLI Status"
       }
-    ]
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "extension.addSpectraCode",
+          "group": "navigation",
+          "when": "resourceLangId == python"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

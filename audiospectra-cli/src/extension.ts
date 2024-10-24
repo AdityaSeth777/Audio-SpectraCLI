@@ -1,26 +1,40 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+// Command to insert Audio-SpectraCLI code into the active editor
+function addSpectraCode() {
+    const editor = vscode.window.activeTextEditor;
+    if (editor) {
+        const document = editor.document;
+        const position = editor.selection.active;
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "audiospectra-cli" is now active!');
+        // Code to insert when the command is called
+        const spectraCode = `# Audio-SpectraCLI sample code\nfrom Audio_SpectraCLI import AudioSpectrumVisualizer\nfrom PyQt5.QtWidgets import QApplication\n\napp = QApplication([])\naudio_visualizer = AudioSpectrumVisualizer(duration=5, fs=22050, block_size=1024, frequency_range=(1000, 5000), color='red')\naudio_visualizer.show()\napp.exec_()`;
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('audiospectra-cli.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from Audio-SpectraCLI!');
-	});
-
-	context.subscriptions.push(disposable);
+        editor.edit(editBuilder => {
+            editBuilder.insert(position, spectraCode);
+        }).then(success => {
+            if (success) {
+                vscode.window.showInformationMessage('Audio-SpectraCLI code added!');
+            } else {
+                vscode.window.showErrorMessage('Failed to add Audio-SpectraCLI code.');
+            }
+        });
+    }
 }
 
-// This method is called when your extension is deactivated
+// Command to show the Audio-SpectraCLI status
+function viewSpectraCLIStatus() {
+    vscode.window.showInformationMessage('Audio-SpectraCLI is ready to use!');
+}
+
+export function activate(context: vscode.ExtensionContext) {
+    console.log('Audio-SpectraCLI extension is now active.');
+
+    let addCodeCommand = vscode.commands.registerCommand('extension.addSpectraCode', addSpectraCode);
+    let viewStatusCommand = vscode.commands.registerCommand('extension.viewSpectraCLIStatus', viewSpectraCLIStatus);
+
+    context.subscriptions.push(addCodeCommand);
+    context.subscriptions.push(viewStatusCommand);
+}
+
 export function deactivate() {}
