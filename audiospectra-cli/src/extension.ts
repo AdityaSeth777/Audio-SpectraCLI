@@ -4,7 +4,6 @@ import * as vscode from 'vscode';
 function addSpectraCode() {
     const editor = vscode.window.activeTextEditor;
     if (editor) {
-        const document = editor.document;
         const position = editor.selection.active;
 
         // Code to insert when the command is called
@@ -19,6 +18,8 @@ function addSpectraCode() {
                 vscode.window.showErrorMessage('Failed to add Audio-SpectraCLI code.');
             }
         });
+    } else {
+        vscode.window.showErrorMessage('No active editor found!');
     }
 }
 
@@ -27,6 +28,7 @@ function viewSpectraCLIStatus() {
     vscode.window.showInformationMessage('Audio-SpectraCLI is ready to use!');
 }
 
+// Activation function
 export function activate(context: vscode.ExtensionContext) {
     console.log('Audio-SpectraCLI extension is now active.');
 
@@ -37,4 +39,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(viewStatusCommand);
 }
 
-export function deactivate() {}
+// Deactivation function
+export function deactivate() {
+    console.log('Audio-SpectraCLI extension deactivated.');
+}

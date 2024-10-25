@@ -1,14 +1,12 @@
 {
-  "name": "audiospectra-cli",
-  "displayName": "Audio-SpectraCLI",
-  "description": "A real-time audio spectrum visualizer and analyzer integrated into VS Code, allowing users to visualize FFT spectra from audio inputs directly within the editor. Customize frequency ranges, color schemes, and more using Python’s AudioSpectraCLI module.",
+  "name": "audio-spectracli-extension",
+  "displayName": "Audio-SpectraCLI Extension",
+  "description": "VS Code extension for integrating Audio-SpectraCLI.",
   "version": "0.0.1",
+  "publisher": "your-publisher-name",
   "engines": {
-    "vscode": "^1.93.0"
+    "vscode": "^1.70.0"
   },
-  "categories": [
-    "Other"
-  ],
   "activationEvents": [
     "onCommand:extension.addSpectraCode",
     "onCommand:extension.viewSpectraCLIStatus"
@@ -24,42 +22,20 @@
         "command": "extension.viewSpectraCLIStatus",
         "title": "View Audio-SpectraCLI Status"
       }
-    ],
-    "menus": {
-      "explorer/context": [
-        {
-          "command": "extension.addSpectraCode",
-          "group": "navigation",
-          "when": "resourceLangId == python"
-        }
-      ]
-    }
+    ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run package",
-    "compile": "npm run check-types && npm run lint && node esbuild.js",
-    "watch": "npm-run-all -p watch:*",
-    "watch:esbuild": "node esbuild.js --watch",
-    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-    "package": "npm run check-types && npm run lint && node esbuild.js --production",
-    "compile-tests": "tsc -p . --outDir out",
-    "watch-tests": "tsc -p . -w --outDir out",
-    "pretest": "npm run compile-tests && npm run compile && npm run lint",
-    "check-types": "tsc --noEmit",
-    "lint": "eslint src",
-    "test": "vscode-test"
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {
-    "@types/mocha": "^10.0.7",
-    "@types/node": "20.x",
-    "@types/vscode": "^1.93.0",
-    "@typescript-eslint/eslint-plugin": "^8.3.0",
-    "@typescript-eslint/parser": "^8.3.0",
-    "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.4.1",
-    "esbuild": "^0.23.1",
-    "eslint": "^9.9.1",
-    "npm-run-all": "^4.1.5",
-    "typescript": "^5.6.3"
+    "@types/mocha": "^10.0.9",
+    "@types/node": "^22.7.9",
+    "@types/vscode": "^1.70.0",
+    "typescript": "^4.0.0"
   }
 }
