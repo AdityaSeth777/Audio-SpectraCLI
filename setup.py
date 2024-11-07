@@ -10,7 +10,7 @@ except FileNotFoundError:
 
 setup(
     name='Audio_SpectraCLI',
-    version='4.0.1',
+    version='4.1.0',
     author="Aditya Seth",
     long_description=long_description,
     long_description_content_type='text/markdown',
