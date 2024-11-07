@@ -7,4 +7,3 @@ twine
 wheel
 pyqt5
 scipy
-pyaudio
