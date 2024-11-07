@@ -1,0 +1,51 @@
+{
+  "name": "audio-spectracli-extension",
+  "displayName": "Audio-SpectraCLI Extension",
+  "description": "VS Code extension for integrating Audio-SpectraCLI.",
+  "version": "4.1.0",
+  "publisher": "AdityaSeth777",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AdityaSeth777/Audio-SpectraCLI.git"
+  },
+  "icon": "assets/logo.jpeg",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "activationEvents": [
+    "onCommand:extension.addSpectraCode",
+    "onCommand:extension.viewSpectraCLIStatus"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.addSpectraCode",
+        "title": "Add Audio-SpectraCLI Code"
+      },
+      {
+        "command": "extension.viewSpectraCLIStatus",
+        "title": "View Audio-SpectraCLI Status"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.9",
+    "@types/node": "^22.7.9",
+    "@types/vscode": "^1.70.0",
+    "typescript": "^4.0.0"
+  },
+  "dependencies": {
+    "@vscode/vsce": "^3.2.1",
+    "punycode": "^2.3.1",
+    "vsce": "^2.15.0"
+  }
+}
