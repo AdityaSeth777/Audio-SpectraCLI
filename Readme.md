@@ -9,7 +9,7 @@
 
 <div align=center>
 
-![](/audiospectra-cli/assets/cover.jpg)
+[![cover.png](https://i.postimg.cc/1t7F1J9j/cover.png)](https://postimg.cc/bDbrQ0Sx)
 
 </div>
 
