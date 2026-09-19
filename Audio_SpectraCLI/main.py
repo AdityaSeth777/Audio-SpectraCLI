@@ -3,21 +3,75 @@
 # It is responsible for creating the AudioSpectrumVisualizer class which is used
 # to visualize the audio spectrum in real-time.
 
-from PyQt5.QtWidgets import QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QSlider
+import csv
+import json
+
+import numpy as np
+import sounddevice as sd
 from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QColor, QKeySequence
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QColorDialog,
+    QComboBox,
+    QDoubleSpinBox,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QShortcut,
+    QSizePolicy,
+    QSlider,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
+from .analysis import BeatDetector, downsample_max_pool, magnitude_to_db, nearest_musical_note
 from .engine import AudioSpectrumEngine
+from .midi_out import MidiNoteSender, MidiUnavailableError, frequency_to_midi_note
 
 RENDER_INTERVAL_MS = 33  # ~30fps redraw cap, independent of the audio block rate
+GAUSSIAN_SMOOTHING_SIGMA = 2  # matches AudioSpectrumEngine's own default; 0 effectively disables smoothing
+PEAK_HOLD_DECAY = 0.92  # per-frame multiplicative decay of the held peak
+WATERFALL_HISTORY_ROWS = 60
+WATERFALL_WIDTH = 200  # fixed column count per row, independent of block_size
+BARS_COUNT = 64
+
+FREQUENCY_RANGE_PRESETS = {
+    "0 - 2,500 Hz": (0, 2500),
+    "0 - 5,000 Hz": (0, 5000),
+    "0 - 7,500 Hz": (0, 7500),
+    "0 - 10,000 Hz": (0, 10000),
+    "0 - 20,000 Hz (default)": (0, 20000),
+}
+
+WINDOW_TYPE_LABELS = {
+    "None": "none",
+    "Hann": "hann",
+    "Hamming": "hamming",
+    "Blackman": "blackman",
+}
+
+CHANNEL_MODE_LABELS = {
+    "Mono (mix)": "mono_mix",
+    "Left": "left",
+    "Right": "right",
+}
+
+VIEW_MODES = ["Line", "Bars", "Waterfall", "Circular", "Tuner"]
 
 
 class AudioSpectrumVisualizer(QMainWindow):
     def __init__(self, duration=10, fs=44100, block_size=4096, frequency_range=(20, 20000), color='blue', device=None):
         super().__init__()
         self.setWindowTitle('Audio Spectrum Visualizer')
-        self.setGeometry(100, 100, 800, 600)
+        self.setGeometry(100, 100, 900, 750)
 
         self.duration = duration  # Duration in seconds
         self.fs = fs  # Sampling rate
@@ -25,6 +79,25 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.frequency_range = frequency_range  # Frequency range
         self.color = color  # Color
         self.device = device  # sounddevice input device index, or None for the system default
+        self.smoothing_sigma = GAUSSIAN_SMOOTHING_SIGMA  # 0 when the Gaussian-smoothing checkbox is unchecked
+
+        # Feature additions: DSP options
+        self.window_type = "none"
+        self.noise_threshold = 0.05
+        self.channel_mode = "mono_mix"
+        self.db_scale = False
+
+        # Feature additions: view/overlay state
+        self.view_mode = "line"
+        self.peak_hold_enabled = False
+        self.peak_hold_values = None
+        self.waterfall_history = []
+
+        # Feature additions: analysis/output state
+        self.beat_detector = None
+        self.bpm_estimate = None
+        self.midi_enabled = False
+        self.midi_sender = None
 
         self.engine = None
         # The engine's background thread calls _on_engine_spectrum for every
@@ -44,51 +117,281 @@ class AudioSpectrumVisualizer(QMainWindow):
 
         self.setup_ui()
 
+        QShortcut(QKeySequence('Ctrl+S'), self, activated=self.export_png)
+
     def setup_ui(self):
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
 
-        self.layout = QVBoxLayout()
+        outer_layout = QVBoxLayout()
 
-        self.canvas = FigureCanvas(Figure(figsize=(5, 3)))
+        # constrained_layout keeps axis labels/titles from being clipped as
+        # the canvas is resized (e.g. maximizing the window), instead of
+        # only laying out correctly at the initial figsize.
+        self.canvas = FigureCanvas(Figure(figsize=(5, 3), constrained_layout=True))
+        self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.ax = self.canvas.figure.add_subplot(111)
-        self.layout.addWidget(self.canvas)
+        outer_layout.addWidget(self.canvas, stretch=1)
 
-        self.duration_slider = QSlider(Qt.Horizontal)
-        self.duration_slider.setMinimum(1)
-        self.duration_slider.setMaximum(10)
-        self.duration_slider.setValue(self.duration)
-        self.duration_slider.setTickInterval(1)
-        self.duration_slider.setTickPosition(QSlider.TicksBelow)
-        self.duration_slider.valueChanged.connect(self.set_duration)
-        self.layout.addWidget(QLabel('Duration (seconds):'))
-        self.layout.addWidget(self.duration_slider)
+        status_row = QHBoxLayout()
+        self.bpm_label = QLabel('BPM: --')
+        self.note_label = QLabel('Note: --')
+        status_row.addWidget(self.bpm_label)
+        status_row.addWidget(self.note_label)
+        status_row.addStretch(1)
+        outer_layout.addLayout(status_row)
 
-        self.fs_slider = QSlider(Qt.Horizontal)
-        self.fs_slider.setMinimum(22050)
-        self.fs_slider.setMaximum(44100)
-        self.fs_slider.setValue(self.fs)
-        self.fs_slider.setTickInterval(11025)
-        self.fs_slider.setTickPosition(QSlider.TicksBelow)
-        self.fs_slider.valueChanged.connect(self.set_sampling_rate)
-        self.layout.addWidget(QLabel('Sampling Rate (Hz):'))
-        self.layout.addWidget(self.fs_slider)
+        # Controls live in a scroll area — there are now enough of them that
+        # a fixed-height panel would either shrink the canvas badly or run
+        # off the bottom of the screen on smaller displays.
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        controls_widget = QWidget()
+        self.layout = QVBoxLayout()
+        controls_widget.setLayout(self.layout)
+        scroll.setWidget(controls_widget)
+        outer_layout.addWidget(scroll)
 
-        self.block_size_slider = QSlider(Qt.Horizontal)
-        self.block_size_slider.setMinimum(256)
-        self.block_size_slider.setMaximum(8192)
-        self.block_size_slider.setValue(self.block_size)
-        self.block_size_slider.setTickInterval(512)
-        self.block_size_slider.setTickPosition(QSlider.TicksBelow)
-        self.block_size_slider.valueChanged.connect(self.set_block_size)
-        self.layout.addWidget(QLabel('Block Size:'))
-        self.layout.addWidget(self.block_size_slider)
+        self.duration_slider, self.duration_spinbox = self._add_slider_row(
+            'Duration (seconds):', minimum=1, maximum=10, value=self.duration, on_change=self.set_duration,
+        )
+        self.fs_slider, self.fs_spinbox = self._add_slider_row(
+            'Sampling Rate (Hz):', minimum=22050, maximum=44100, value=self.fs, on_change=self.set_sampling_rate,
+        )
+        self.block_size_slider, self.block_size_spinbox = self._add_slider_row(
+            'Block Size:', minimum=256, maximum=8192, value=self.block_size, on_change=self.set_block_size,
+        )
+
+        self._add_frequency_range_row()
+        self._add_color_row()
+        self._add_smoothing_row()
+        self._add_noise_threshold_row()
+        self._add_window_type_row()
+        self._add_channel_mode_row()
+        self._add_db_scale_checkbox()
+        self._add_view_mode_row()
+        self._add_peak_hold_checkbox()
+        self._add_device_row()
+        self._add_export_row()
+        self._add_preset_row()
+        self._add_midi_checkbox()
 
         self.start_button = QPushButton('Start Visualization')
         self.start_button.clicked.connect(self.toggle_visualization)
-        self.layout.addWidget(self.start_button)
+        outer_layout.addWidget(self.start_button)
 
-        self.central_widget.setLayout(self.layout)
+        self.central_widget.setLayout(outer_layout)
+
+    def _add_slider_row(self, label_text, minimum, maximum, value, on_change):
+        """Adds a labeled slider + spinbox pair, kept in sync with each other.
+
+        The spinbox shows the exact current value (not just a dot's position
+        on the slider) and can be typed into directly, rather than only
+        being draggable.
+        """
+        self.layout.addWidget(QLabel(label_text))
+
+        row = QHBoxLayout()
+
+        slider = QSlider(Qt.Horizontal)
+        slider.setMinimum(minimum)
+        slider.setMaximum(maximum)
+        slider.setValue(value)
+        slider.setTickPosition(QSlider.TicksBelow)
+
+        spinbox = QSpinBox()
+        spinbox.setMinimum(minimum)
+        spinbox.setMaximum(maximum)
+        spinbox.setValue(value)
+
+        slider.valueChanged.connect(spinbox.setValue)
+        spinbox.valueChanged.connect(slider.setValue)
+        slider.valueChanged.connect(on_change)
+
+        row.addWidget(slider, stretch=1)
+        row.addWidget(spinbox)
+        self.layout.addLayout(row)
+
+        return slider, spinbox
+
+    def _add_frequency_range_row(self):
+        self.layout.addWidget(QLabel('Frequency Range (Hz):'))
+
+        row = QHBoxLayout()
+
+        self.freq_min_spinbox = QSpinBox()
+        self.freq_min_spinbox.setRange(0, 20000)
+        self.freq_min_spinbox.setValue(self.frequency_range[0])
+        self.freq_min_spinbox.valueChanged.connect(self.set_frequency_min)
+
+        self.freq_max_spinbox = QSpinBox()
+        self.freq_max_spinbox.setRange(0, 20000)
+        self.freq_max_spinbox.setValue(self.frequency_range[1])
+        self.freq_max_spinbox.valueChanged.connect(self.set_frequency_max)
+
+        self.freq_preset_combo = QComboBox()
+        self.freq_preset_combo.addItems(FREQUENCY_RANGE_PRESETS.keys())
+        self.freq_preset_combo.currentTextChanged.connect(self.apply_frequency_preset)
+
+        row.addWidget(self.freq_min_spinbox)
+        row.addWidget(QLabel('to'))
+        row.addWidget(self.freq_max_spinbox)
+        row.addWidget(self.freq_preset_combo, stretch=1)
+        self.layout.addLayout(row)
+
+    def _add_color_row(self):
+        row = QHBoxLayout()
+        row.addWidget(QLabel('Plot Color:'))
+
+        self.color_button = QPushButton()
+        self.color_button.setFixedWidth(60)
+        self._update_color_button_swatch()
+        self.color_button.clicked.connect(self.choose_color)
+
+        row.addWidget(self.color_button)
+        row.addStretch(1)
+        self.layout.addLayout(row)
+
+    def _update_color_button_swatch(self):
+        self.color_button.setStyleSheet(f'background-color: {self.color};')
+
+    def _add_smoothing_row(self):
+        row = QHBoxLayout()
+
+        self.smoothing_checkbox = QCheckBox('Smooth spectrum (Gaussian filter)')
+        self.smoothing_checkbox.setChecked(True)
+        self.smoothing_checkbox.toggled.connect(self.set_smoothing_enabled)
+
+        self.smoothing_strength_spinbox = QSpinBox()
+        self.smoothing_strength_spinbox.setRange(1, 10)
+        self.smoothing_strength_spinbox.setValue(GAUSSIAN_SMOOTHING_SIGMA)
+        self.smoothing_strength_spinbox.valueChanged.connect(self.set_smoothing_strength)
+
+        row.addWidget(self.smoothing_checkbox)
+        row.addWidget(QLabel('Strength:'))
+        row.addWidget(self.smoothing_strength_spinbox)
+        row.addStretch(1)
+        self.layout.addLayout(row)
+
+    def _add_noise_threshold_row(self):
+        self.layout.addWidget(QLabel('Noise Threshold:'))
+        row = QHBoxLayout()
+
+        self.noise_threshold_slider = QSlider(Qt.Horizontal)
+        self.noise_threshold_slider.setRange(0, 100)  # represents 0.00-1.00
+        self.noise_threshold_slider.setValue(int(self.noise_threshold * 100))
+
+        self.noise_threshold_spinbox = QDoubleSpinBox()
+        self.noise_threshold_spinbox.setRange(0.0, 1.0)
+        self.noise_threshold_spinbox.setSingleStep(0.01)
+        self.noise_threshold_spinbox.setValue(self.noise_threshold)
+
+        self.noise_threshold_slider.valueChanged.connect(lambda v: self.noise_threshold_spinbox.setValue(v / 100))
+        self.noise_threshold_spinbox.valueChanged.connect(
+            lambda v: self.noise_threshold_slider.setValue(int(round(v * 100)))
+        )
+        self.noise_threshold_spinbox.valueChanged.connect(self.set_noise_threshold)
+
+        row.addWidget(self.noise_threshold_slider, stretch=1)
+        row.addWidget(self.noise_threshold_spinbox)
+        self.layout.addLayout(row)
+
+    def _add_window_type_row(self):
+        row = QHBoxLayout()
+        row.addWidget(QLabel('Window Function:'))
+        self.window_type_combo = QComboBox()
+        self.window_type_combo.addItems(WINDOW_TYPE_LABELS.keys())
+        self.window_type_combo.currentTextChanged.connect(self.set_window_type)
+        row.addWidget(self.window_type_combo, stretch=1)
+        self.layout.addLayout(row)
+
+    def _add_channel_mode_row(self):
+        row = QHBoxLayout()
+        row.addWidget(QLabel('Channel:'))
+        self.channel_mode_combo = QComboBox()
+        self.channel_mode_combo.addItems(CHANNEL_MODE_LABELS.keys())
+        self.channel_mode_combo.currentTextChanged.connect(self.set_channel_mode)
+        row.addWidget(self.channel_mode_combo, stretch=1)
+        self.layout.addLayout(row)
+
+    def _add_db_scale_checkbox(self):
+        self.db_scale_checkbox = QCheckBox('Use dB (logarithmic) scale')
+        self.db_scale_checkbox.toggled.connect(self.set_db_scale)
+        self.layout.addWidget(self.db_scale_checkbox)
+
+    def _add_view_mode_row(self):
+        row = QHBoxLayout()
+        row.addWidget(QLabel('View Mode:'))
+        self.view_mode_combo = QComboBox()
+        self.view_mode_combo.addItems(VIEW_MODES)
+        self.view_mode_combo.currentTextChanged.connect(self.set_view_mode)
+        row.addWidget(self.view_mode_combo, stretch=1)
+        self.layout.addLayout(row)
+
+    def _add_peak_hold_checkbox(self):
+        self.peak_hold_checkbox = QCheckBox('Show peak-hold markers (Line/Bars views)')
+        self.peak_hold_checkbox.toggled.connect(self.set_peak_hold_enabled)
+        self.layout.addWidget(self.peak_hold_checkbox)
+
+    def _add_device_row(self):
+        row = QHBoxLayout()
+        row.addWidget(QLabel('Input Device:'))
+
+        self.device_combo = QComboBox()
+        self._device_indices = []
+        try:
+            devices = sd.query_devices()
+        except Exception:
+            devices = []
+        for i, d in enumerate(devices):
+            if d.get('max_input_channels', 0) > 0:
+                self._device_indices.append(i)
+                marker = ' (default)' if self.device is None and i == sd.default.device[0] else ''
+                self.device_combo.addItem(f"[{i}] {d['name']}{marker}")
+
+        if self.device is not None and self.device in self._device_indices:
+            self.device_combo.setCurrentIndex(self._device_indices.index(self.device))
+
+        self.device_combo.currentIndexChanged.connect(self.set_device_by_combo_index)
+        row.addWidget(self.device_combo, stretch=1)
+        self.layout.addLayout(row)
+
+    def _add_export_row(self):
+        row = QHBoxLayout()
+
+        export_png_button = QPushButton('Export PNG (Ctrl+S)')
+        export_png_button.clicked.connect(self.export_png)
+
+        export_csv_button = QPushButton('Export CSV')
+        export_csv_button.clicked.connect(self.export_csv)
+
+        self.record_button = QPushButton('Start Recording (WAV)')
+        self.record_button.clicked.connect(self.toggle_recording)
+
+        row.addWidget(export_png_button)
+        row.addWidget(export_csv_button)
+        row.addWidget(self.record_button)
+        self.layout.addLayout(row)
+
+    def _add_preset_row(self):
+        row = QHBoxLayout()
+
+        save_button = QPushButton('Save Preset')
+        save_button.clicked.connect(self.save_preset)
+
+        load_button = QPushButton('Load Preset')
+        load_button.clicked.connect(self.load_preset)
+
+        row.addWidget(save_button)
+        row.addWidget(load_button)
+        self.layout.addLayout(row)
+
+    def _add_midi_checkbox(self):
+        self.midi_checkbox = QCheckBox('Send dominant frequency as MIDI (virtual port)')
+        self.midi_checkbox.toggled.connect(self.set_midi_enabled)
+        self.layout.addWidget(self.midi_checkbox)
+
+    # ---- rendering ----------------------------------------------------
 
     def _on_engine_spectrum(self, freq_bins, spectrum, max_magnitude):
         # Called from the engine's background thread — must stay cheap and
@@ -108,45 +411,402 @@ class AudioSpectrumVisualizer(QMainWindow):
             # frame and keep the visualizer running instead of aborting.
             print(f'Audio-SpectraCLI: skipped a frame due to an error: {exc}')
 
+    def _visible_mask(self, freq_bins):
+        return (freq_bins >= self.frequency_range[0]) & (freq_bins <= self.frequency_range[1])
+
     def update_plot(self, freq_bins, spectrum, max_magnitude):
+        display_spectrum = magnitude_to_db(spectrum) if self.db_scale else spectrum
+
+        mask = self._visible_mask(freq_bins)
+        visible_freqs = freq_bins[mask]
+        visible_values = display_spectrum[mask]
+        if visible_values.size == 0:
+            visible_freqs, visible_values = freq_bins, display_spectrum
+        visible_max = float(np.max(visible_values)) if visible_values.size else 1.0
+
+        if self.peak_hold_enabled:
+            if self.peak_hold_values is None or len(self.peak_hold_values) != len(display_spectrum):
+                self.peak_hold_values = display_spectrum.copy()
+            else:
+                self.peak_hold_values = np.maximum(display_spectrum, self.peak_hold_values * PEAK_HOLD_DECAY)
+
+        self._update_status_labels(freq_bins, spectrum, visible_freqs, visible_values)
+        self._maybe_send_midi(visible_freqs, visible_values)
+
         self.ax.clear()
-        self.ax.plot(freq_bins, spectrum, color=self.color)
-        self.ax.set_xlim(self.frequency_range)
-        self.ax.set_ylim(0, max_magnitude * 0.5)
-        self.ax.set_xlabel('Frequency (Hz)')
-        self.ax.set_ylabel('Magnitude')
+
+        if self.view_mode == "waterfall":
+            self._render_waterfall(visible_freqs, visible_values)
+        elif self.view_mode == "circular":
+            self._render_circular(visible_values, visible_max)
+        elif self.view_mode == "tuner":
+            self._render_tuner(visible_freqs, visible_values)
+        else:
+            self._render_line_or_bars(freq_bins, display_spectrum, visible_max)
+
+        y_floor = -100 if self.db_scale else 0
         self.ax.set_title('Audio Spectrum Visualization')
+        if self.view_mode in ("line", "bars"):
+            self.ax.set_xlim(self.frequency_range)
+            self.ax.set_ylim(y_floor, max(visible_max * 1.2, y_floor + 0.01))
+            self.ax.set_xlabel('Frequency (Hz)')
+            self.ax.set_ylabel('Magnitude (dB)' if self.db_scale else 'Magnitude')
+        elif self.view_mode == "waterfall":
+            # Deliberately does not call set_ylim here: _render_waterfall
+            # already set imshow's extent to (0, num_history_rows), and
+            # overwriting it with the linear-magnitude range used by
+            # line/bars would squash the whole image into a sliver at the
+            # bottom — exactly the bug this comment is here to prevent
+            # reintroducing.
+            self.ax.set_xlim(self.frequency_range)
+            self.ax.set_xlabel('Frequency (Hz)')
+
         self.canvas.draw()
+
+    def _render_line_or_bars(self, freq_bins, display_spectrum, visible_max):
+        if self.view_mode == "bars":
+            bar_freqs = downsample_max_pool(freq_bins, BARS_COUNT)
+            bar_values = downsample_max_pool(display_spectrum, BARS_COUNT)
+            width = (self.frequency_range[1] - self.frequency_range[0]) / BARS_COUNT
+            self.ax.bar(bar_freqs, bar_values, width=width, color=self.color)
+        else:
+            self.ax.plot(freq_bins, display_spectrum, color=self.color)
+
+        if self.peak_hold_enabled and self.peak_hold_values is not None:
+            self.ax.plot(freq_bins, self.peak_hold_values, color='red', linestyle='--', linewidth=1)
+
+    def _render_waterfall(self, visible_freqs, visible_values):
+        row = downsample_max_pool(visible_values, WATERFALL_WIDTH)
+        self.waterfall_history.append(row)
+        self.waterfall_history = self.waterfall_history[-WATERFALL_HISTORY_ROWS:]
+
+        history_array = np.array(self.waterfall_history)
+        self.ax.imshow(
+            history_array,
+            aspect='auto',
+            origin='lower',
+            extent=[self.frequency_range[0], self.frequency_range[1], 0, len(self.waterfall_history)],
+            cmap='viridis',
+        )
+        self.ax.set_ylabel('Frames (most recent at top)')
+
+    def _render_circular(self, visible_values, visible_max):
+        n = len(visible_values)
+        if n == 0:
+            return
+        theta = np.linspace(0, 2 * np.pi, n, endpoint=False)
+        norm = visible_values / visible_max if visible_max > 0 else np.zeros(n)
+        radius = 1 + norm
+        x = radius * np.cos(theta)
+        y = radius * np.sin(theta)
+        self.ax.plot(x, y, color=self.color)
+        self.ax.set_aspect('equal')
+        self.ax.axis('off')
+
+    def _render_tuner(self, visible_freqs, visible_values):
+        self.ax.axis('off')
+        if visible_values.size == 0:
+            self.ax.text(0.5, 0.5, 'No signal', ha='center', va='center', fontsize=24, transform=self.ax.transAxes)
+            return
+
+        dominant_freq = float(visible_freqs[int(np.argmax(visible_values))])
+        note = nearest_musical_note(dominant_freq)
+        if note is None:
+            text = f"{dominant_freq:.1f} Hz"
+        else:
+            note_name, octave, cents = note
+            sign = '+' if cents >= 0 else ''
+            text = f"{note_name}{octave}\n{dominant_freq:.1f} Hz\n{sign}{cents:.0f} cents"
+
+        self.ax.text(
+            0.5, 0.5, text, ha='center', va='center', fontsize=32, color=self.color, transform=self.ax.transAxes,
+        )
+
+    def _update_status_labels(self, freq_bins, spectrum, visible_freqs, visible_values):
+        if self.beat_detector is not None:
+            self.bpm_estimate = self.beat_detector.process(spectrum)
+            self.bpm_label.setText(f"BPM: {self.bpm_estimate:.0f}" if self.bpm_estimate else "BPM: --")
+
+        if visible_values.size:
+            dominant_freq = float(visible_freqs[int(np.argmax(visible_values))])
+            note = nearest_musical_note(dominant_freq)
+            if note:
+                note_name, octave, _cents = note
+                self.note_label.setText(f"Note: {note_name}{octave} ({dominant_freq:.1f} Hz)")
+            else:
+                self.note_label.setText(f"Note: -- ({dominant_freq:.1f} Hz)")
+
+    def _maybe_send_midi(self, visible_freqs, visible_values):
+        if not self.midi_enabled or self.midi_sender is None or visible_values.size == 0:
+            return
+        dominant_freq = float(visible_freqs[int(np.argmax(visible_values))])
+        midi_note = frequency_to_midi_note(dominant_freq)
+        if midi_note is not None:
+            self.midi_sender.send_note_for_frequency(midi_note)
+
+    # ---- setters wired to controls -------------------------------------
 
     def set_duration(self, value):
         self.duration = value
 
     def set_sampling_rate(self, value):
+        # Takes effect the next time Start is clicked — a running
+        # sounddevice stream can't have its sample rate changed in place;
+        # that requires stopping and reopening it.
         self.fs = value
 
     def set_block_size(self, value):
+        # Same as set_sampling_rate: applies to the next Start, not the
+        # currently running stream.
         self.block_size = value
+
+    def set_frequency_min(self, value):
+        if value >= self.frequency_range[1]:
+            self.freq_min_spinbox.setValue(self.frequency_range[0])  # reject, restore previous
+            return
+        self.frequency_range = (value, self.frequency_range[1])
+
+    def set_frequency_max(self, value):
+        if value <= self.frequency_range[0]:
+            self.freq_max_spinbox.setValue(self.frequency_range[1])  # reject, restore previous
+            return
+        self.frequency_range = (self.frequency_range[0], value)
+
+    def apply_frequency_preset(self, preset_label):
+        preset = FREQUENCY_RANGE_PRESETS.get(preset_label)
+        if preset is None:
+            return
+        self.freq_min_spinbox.setValue(preset[0])
+        self.freq_max_spinbox.setValue(preset[1])
+
+    def choose_color(self):
+        chosen = QColorDialog.getColor(initial=QColor(self.color), parent=self)
+        if not chosen.isValid():
+            return
+        self.color = chosen.name()
+        self._update_color_button_swatch()
+
+    def set_smoothing_enabled(self, enabled):
+        self.smoothing_sigma = self.smoothing_strength_spinbox.value() if enabled else 0
+        self._push_live_engine_attr('smoothing_sigma', self.smoothing_sigma)
+
+    def set_smoothing_strength(self, value):
+        if self.smoothing_checkbox.isChecked():
+            self.smoothing_sigma = value
+            self._push_live_engine_attr('smoothing_sigma', self.smoothing_sigma)
+
+    def set_noise_threshold(self, value):
+        self.noise_threshold = value
+        self._push_live_engine_attr('noise_threshold', value)
+
+    def set_window_type(self, label):
+        self.window_type = WINDOW_TYPE_LABELS.get(label, "none")
+        self._push_live_engine_attr('window_type', self.window_type)
+
+    def set_channel_mode(self, label):
+        self.channel_mode = CHANNEL_MODE_LABELS.get(label, "mono_mix")
+        self._push_live_engine_attr('channel_mode', self.channel_mode)
+
+    def set_db_scale(self, enabled):
+        self.db_scale = enabled
+        self.peak_hold_values = None  # stale values were on the other scale
+
+    def set_view_mode(self, label):
+        self.view_mode = label.lower()
+        self.waterfall_history = []
+        self.peak_hold_values = None
+
+    def set_peak_hold_enabled(self, enabled):
+        self.peak_hold_enabled = enabled
+        self.peak_hold_values = None
+
+    def set_device_by_combo_index(self, combo_index):
+        if self.engine is not None:
+            # Changing the device on a running stream isn't supported —
+            # same constraint as sampling rate/block size. Restore the
+            # combo to the device actually in use instead of silently
+            # ignoring the click.
+            if self.device in self._device_indices:
+                self.device_combo.setCurrentIndex(self._device_indices.index(self.device))
+            return
+        if 0 <= combo_index < len(self._device_indices):
+            self.device = self._device_indices[combo_index]
+
+    def set_midi_enabled(self, enabled):
+        if enabled:
+            try:
+                self.midi_sender = MidiNoteSender()
+                self.midi_enabled = True
+            except MidiUnavailableError as exc:
+                self.midi_checkbox.setChecked(False)
+                QMessageBox.warning(self, 'MIDI unavailable', str(exc))
+        else:
+            self.midi_enabled = False
+            if self.midi_sender is not None:
+                self.midi_sender.close()
+                self.midi_sender = None
+
+    def _push_live_engine_attr(self, attr_name, value):
+        """Applies a setting to the currently running engine, if any.
+
+        engine.py reads these attributes fresh on every processed block, so
+        this takes effect on the very next block — no restart needed, unlike
+        fs/block_size/channels/device which require reopening the stream.
+        """
+        if self.engine is not None:
+            setattr(self.engine, attr_name, value)
+
+    # ---- export / presets / recording ----------------------------------
+
+    def export_png(self):
+        path, _ = QFileDialog.getSaveFileName(self, 'Export current view as PNG', 'spectrum.png', 'PNG Files (*.png)')
+        if path:
+            self.canvas.figure.savefig(path)
+
+    def export_csv(self):
+        if self._latest_frame is None:
+            QMessageBox.information(self, 'No data yet', 'Start visualizing before exporting data.')
+            return
+        path, _ = QFileDialog.getSaveFileName(self, 'Export current frame as CSV', 'spectrum.csv', 'CSV Files (*.csv)')
+        if not path:
+            return
+        freq_bins, spectrum, _max_magnitude = self._latest_frame
+        with open(path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['frequency_hz', 'magnitude'])
+            writer.writerows(zip(freq_bins.tolist(), spectrum.tolist()))
+
+    def toggle_recording(self):
+        if self.engine is None:
+            QMessageBox.information(self, 'Not running', 'Start visualization before recording.')
+            return
+
+        if self.engine.recording:
+            samples = self.engine.stop_recording()
+            self.record_button.setText('Start Recording (WAV)')
+            if samples.size == 0:
+                QMessageBox.information(self, 'Nothing recorded', 'No audio was captured.')
+                return
+            path, _ = QFileDialog.getSaveFileName(self, 'Save recording', 'recording.wav', 'WAV Files (*.wav)')
+            if path:
+                self._write_wav(path, samples, self.fs)
+        else:
+            self.engine.start_recording()
+            self.record_button.setText('Stop Recording (WAV)')
+
+    @staticmethod
+    def _write_wav(path, samples, sample_rate):
+        from scipy.io import wavfile
+
+        clipped = np.clip(samples, -1.0, 1.0)
+        int16_samples = (clipped * 32767).astype(np.int16)
+        wavfile.write(path, sample_rate, int16_samples)
+
+    def _current_settings_dict(self):
+        return {
+            'duration': self.duration,
+            'fs': self.fs,
+            'block_size': self.block_size,
+            'frequency_range': list(self.frequency_range),
+            'color': self.color,
+            'window_type': self.window_type,
+            'noise_threshold': self.noise_threshold,
+            'channel_mode': self.channel_mode,
+            'db_scale': self.db_scale,
+            'view_mode': self.view_mode,
+            'peak_hold_enabled': self.peak_hold_enabled,
+            'smoothing_enabled': self.smoothing_checkbox.isChecked(),
+            'smoothing_sigma': self.smoothing_strength_spinbox.value(),
+        }
+
+    def save_preset(self):
+        path, _ = QFileDialog.getSaveFileName(self, 'Save preset', 'preset.json', 'JSON Files (*.json)')
+        if not path:
+            return
+        with open(path, 'w') as f:
+            json.dump(self._current_settings_dict(), f, indent=2)
+
+    def load_preset(self):
+        path, _ = QFileDialog.getOpenFileName(self, 'Load preset', '', 'JSON Files (*.json)')
+        if not path:
+            return
+        with open(path) as f:
+            settings = json.load(f)
+        self.apply_settings_dict(settings)
+
+    def apply_settings_dict(self, settings):
+        """Applies a settings dict (from load_preset, or a test) to the UI controls.
+
+        Going through the widgets (not just the attributes) keeps sliders/
+        spinboxes/checkboxes visually in sync with whatever was loaded.
+        """
+        if 'duration' in settings:
+            self.duration_spinbox.setValue(settings['duration'])
+        if 'fs' in settings:
+            self.fs_spinbox.setValue(settings['fs'])
+        if 'block_size' in settings:
+            self.block_size_spinbox.setValue(settings['block_size'])
+        if 'frequency_range' in settings:
+            fmin, fmax = settings['frequency_range']
+            self.freq_max_spinbox.setValue(fmax)
+            self.freq_min_spinbox.setValue(fmin)
+        if 'color' in settings:
+            self.color = settings['color']
+            self._update_color_button_swatch()
+        if 'window_type' in settings:
+            inverse = {v: k for k, v in WINDOW_TYPE_LABELS.items()}
+            self.window_type_combo.setCurrentText(inverse.get(settings['window_type'], 'None'))
+        if 'noise_threshold' in settings:
+            self.noise_threshold_spinbox.setValue(settings['noise_threshold'])
+        if 'channel_mode' in settings:
+            inverse = {v: k for k, v in CHANNEL_MODE_LABELS.items()}
+            self.channel_mode_combo.setCurrentText(inverse.get(settings['channel_mode'], 'Mono (mix)'))
+        if 'db_scale' in settings:
+            self.db_scale_checkbox.setChecked(settings['db_scale'])
+        if 'view_mode' in settings:
+            self.view_mode_combo.setCurrentText(settings['view_mode'].capitalize())
+        if 'peak_hold_enabled' in settings:
+            self.peak_hold_checkbox.setChecked(settings['peak_hold_enabled'])
+        if 'smoothing_sigma' in settings:
+            self.smoothing_strength_spinbox.setValue(settings['smoothing_sigma'])
+        if 'smoothing_enabled' in settings:
+            self.smoothing_checkbox.setChecked(settings['smoothing_enabled'])
+
+    # ---- lifecycle -------------------------------------------------------
 
     def toggle_visualization(self):
         if self.engine is not None:
             self.engine.stop()
             self.engine = None
             self._latest_frame = None
+            self.beat_detector = None
+            self.device_combo.setEnabled(True)
             self.start_button.setText('Start Visualization')
         else:
+            channels = 2 if self.channel_mode in ("left", "right") else 1
             self.engine = AudioSpectrumEngine(
                 on_spectrum=self._on_engine_spectrum,
                 fs=self.fs,
                 block_size=self.block_size,
                 device=self.device,
+                smoothing_sigma=self.smoothing_sigma,
+                noise_threshold=self.noise_threshold,
+                channels=channels,
+                channel_mode=self.channel_mode,
+                window_type=self.window_type,
             )
             self.engine.start()
+            self.beat_detector = BeatDetector()
+            self.device_combo.setEnabled(False)
             self.start_button.setText('Stop Visualization')
 
     def closeEvent(self, event):
         if self.engine is not None:
             self.engine.stop()
             self.engine = None
+        if self.midi_sender is not None:
+            self.midi_sender.close()
+            self.midi_sender = None
         event.accept()
 
 

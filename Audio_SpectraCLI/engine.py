@@ -11,6 +11,8 @@ import numpy as np
 import sounddevice as sd
 from scipy.ndimage import gaussian_filter1d
 
+from .analysis import apply_window
+
 
 class AudioSpectrumEngine:
     """Captures microphone input and emits smoothed FFT spectra via a callback.
@@ -33,6 +35,9 @@ class AudioSpectrumEngine:
         noise_threshold=0.05,
         smoothing_sigma=2,
         device=None,
+        channels=1,
+        channel_mode="mono_mix",
+        window_type="none",
     ):
         self.on_spectrum = on_spectrum
         self.fs = fs
@@ -40,14 +45,41 @@ class AudioSpectrumEngine:
         self.noise_threshold = noise_threshold
         self.smoothing_sigma = smoothing_sigma
         self.device = device  # sounddevice input device index, or None for the system default
+        self.channels = channels  # number of input channels to actually open on the stream
+        self.channel_mode = channel_mode  # "mono_mix" | "left" | "right" — which channel(s) to analyze
+        self.window_type = window_type  # one of analysis.WINDOW_FUNCTIONS' keys
 
         self.audio_queue = queue.Queue()
         self.running = False
         self.stream = None
         self._worker_thread = None
 
+        self.recording = False
+        self._recorded_chunks = []
+
+    def start_recording(self):
+        """Starts accumulating raw (post channel-select, pre-window) samples for WAV export."""
+        self._recorded_chunks = []
+        self.recording = True
+
+    def stop_recording(self):
+        """Stops recording and returns the accumulated samples as one Float32 array."""
+        self.recording = False
+        if not self._recorded_chunks:
+            return np.array([], dtype=np.float32)
+        return np.concatenate(self._recorded_chunks).astype(np.float32)
+
     def _audio_callback(self, indata, frames, time, status):
         self.audio_queue.put(indata.copy())
+
+    def _select_channel(self, audio_block):
+        if audio_block.shape[1] == 1:
+            return audio_block[:, 0]
+        if self.channel_mode == "left":
+            return audio_block[:, 0]
+        if self.channel_mode == "right":
+            return audio_block[:, min(1, audio_block.shape[1] - 1)]
+        return audio_block.mean(axis=1)  # "mono_mix"
 
     def _process_audio(self):
         while self.running:
@@ -56,7 +88,14 @@ class AudioSpectrumEngine:
             except queue.Empty:
                 continue
 
-            spectrum = np.abs(np.fft.rfft(audio_block[:, 0], n=self.block_size))
+            samples = self._select_channel(audio_block)
+
+            if self.recording:
+                self._recorded_chunks.append(samples.copy())
+
+            windowed_samples = apply_window(samples, self.window_type)
+
+            spectrum = np.abs(np.fft.rfft(windowed_samples, n=self.block_size))
             spectrum = gaussian_filter1d(spectrum, sigma=self.smoothing_sigma)
             max_magnitude = np.max(spectrum)
 
@@ -75,7 +114,7 @@ class AudioSpectrumEngine:
             return
         self.running = True
         sd.default.samplerate = self.fs
-        sd.default.channels = 1
+        sd.default.channels = self.channels
         # blocksize is deliberately tied to block_size: leaving it at
         # PortAudio's default (None) lets it choose its own, often much
         # smaller, callback chunk size, causing on_spectrum to fire far more

@@ -59,6 +59,40 @@
   PyQt5/sip builds, crash the whole app outright after sustained use. Any
   error during a redraw is now also caught and logged instead of being
   allowed to propagate and abort the process.
+- The GUI's canvas now resizes properly on window maximize (no clipped axis
+  labels), and every slider (Duration/Sampling Rate/Block Size/Noise
+  Threshold) has a paired numeric spinbox next to it — the exact value is
+  always visible and directly typeable, not just draggable.
+- Five view modes: **Line** (the original), **Bars** (equalizer-style),
+  **Waterfall** (scrolling history spectrogram), **Circular** (radial
+  display), and **Tuner** (big musical-note readout for the dominant
+  frequency, e.g. "A4 · 441.4 Hz · +6 cents").
+- **dB (logarithmic) scale** toggle, **windowing function** choice
+  (None/Hann/Hamming/Blackman) to reduce spectral leakage, an adjustable
+  **noise threshold** and **Gaussian smoothing strength** (previously
+  hardcoded), and **stereo channel selection** (Mono mix/Left/Right —
+  previously always forced mono).
+- **Peak-hold markers** (Line/Bars views) — a line that holds at the recent
+  peak and decays, like a hardware audio meter.
+- **Live BPM estimation** and a **dominant-note readout**, always shown
+  above the canvas regardless of view mode. The BPM estimate is a simple
+  onset/energy heuristic, not lab-grade beat tracking — expect it to be
+  unstable on non-rhythmic input, that's inherent to how simple it is.
+- **Export** the current view as PNG (also bound to Ctrl+S) or the current
+  frame's data as CSV, and **record microphone input to a WAV file**.
+- **Save/load setting presets** to a local JSON file.
+- **In-GUI microphone selection** (previously only choosable via the
+  `launch.py` interactive launcher at startup) — swap devices from a
+  dropdown before clicking Start; changing it while running is disabled,
+  the same way sampling rate/block size are, since a live stream can't be
+  reconfigured without reopening it.
+- **Optional MIDI-out**: converts the dominant frequency to a MIDI note and
+  sends it to a virtual MIDI port, turning the visualizer into a simple
+  audio-to-MIDI tool. Needs `pip install Audio-SpectraCLI[midi]` (or
+  `pip install mido python-rtmidi` directly) — the checkbox detects if
+  that's missing and disables itself with an explanation instead of
+  crashing. Windows has no native virtual MIDI port support without a
+  third-party loopback driver like loopMIDI; the same message covers that.
 
 ## Packaging
 
@@ -87,6 +121,8 @@ Audio-SpectraCLI/
 │   ├── main-old.py
 │   ├── main.py           # PyQt5 GUI, now built on engine.py
 │   ├── engine.py         # Qt-independent capture/FFT/smoothing core, shared by main.py and headless.py
+│   ├── analysis.py       # pure DSP helpers: windowing, dB conversion, note naming, BPM estimation
+│   ├── midi_out.py       # optional MIDI-out (gracefully degrades if python-rtmidi isn't installed)
 │   ├── headless.py       # `python -m Audio_SpectraCLI.headless` JSON-streaming CLI mode
 │   └── __init__.py
 ├── tests/
@@ -94,7 +130,12 @@ Audio-SpectraCLI/
 │   ├── test.py
 │   ├── test_engine.py
 │   ├── test_headless.py
-│   └── test_gui_smoke.py
+│   ├── test_analysis.py
+│   ├── test_midi_out.py
+│   ├── test_gui_smoke.py
+│   ├── test_gui_stress.py
+│   ├── test_gui_controls.py
+│   └── test_gui_features.py
 ├── audiospectra-cli/         # VS Code extension (now with a real live webview)
 │   ├── assets
 │   ├── dist

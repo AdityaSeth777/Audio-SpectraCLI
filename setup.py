@@ -27,6 +27,14 @@ setup(
         'scipy',
         'pyaudio'
     ],
+    extras_require={
+        # MIDI-out is optional: python-rtmidi is a C-extension package that
+        # some environments can't build, and it's not needed unless you
+        # actually check the "Send dominant frequency as MIDI" box. The GUI
+        # detects its absence and disables the feature with a clear message
+        # instead of failing to import at all.
+        'midi': ['mido', 'python-rtmidi'],
+    },
     license="Apache License 2.0",
     url="https://github.com/AdityaSeth777/Audio-SpectraCLI",
 )

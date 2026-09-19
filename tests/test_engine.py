@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
+from Audio_SpectraCLI.analysis import apply_window
 from Audio_SpectraCLI.engine import AudioSpectrumEngine
 
 
@@ -115,4 +116,55 @@ def test_start_defaults_to_none_device_when_unspecified():
     with patch("Audio_SpectraCLI.engine.sd.InputStream", return_value=fake_stream) as mock_stream_cls:
         engine.start()
         mock_stream_cls.assert_called_once_with(device=None, blocksize=engine.block_size, callback=engine._audio_callback)
+    engine.stop()
+
+
+def test_select_channel_mono_stream_ignores_channel_mode():
+    engine, _ = make_engine(channels=1, channel_mode="right")
+    mono_block = np.array([[1.0], [2.0], [3.0]])
+    result = engine._select_channel(mono_block)
+    assert list(result) == [1.0, 2.0, 3.0]
+
+
+def test_select_channel_left_right_and_mono_mix_on_stereo():
+    engine, _ = make_engine(channels=2)
+    stereo_block = np.array([[1.0, 3.0], [2.0, 4.0]])
+
+    engine.channel_mode = "left"
+    assert list(engine._select_channel(stereo_block)) == [1.0, 2.0]
+
+    engine.channel_mode = "right"
+    assert list(engine._select_channel(stereo_block)) == [3.0, 4.0]
+
+    engine.channel_mode = "mono_mix"
+    assert list(engine._select_channel(stereo_block)) == [2.0, 3.0]
+
+
+def test_window_type_is_applied_before_fft():
+    """A Hann-windowed block's spectrum should differ from an unwindowed one."""
+    engine_none, captured_none = make_engine(window_type="none", noise_threshold=0.001)
+    engine_hann, captured_hann = make_engine(window_type="hann", noise_threshold=0.001)
+
+    for engine, captured in [(engine_none, captured_none), (engine_hann, captured_hann)]:
+        engine.running = True
+        t = np.linspace(0, 1, engine.block_size, endpoint=False)
+        block = np.sin(2 * np.pi * 440 * t).astype(np.float32).reshape(-1, 1)
+        engine.audio_queue.put(block)
+        audio_block = engine.audio_queue.get(timeout=0.1)
+        samples = engine._select_channel(audio_block)
+        samples = apply_window(samples, engine.window_type)
+        spectrum = np.abs(np.fft.rfft(samples, n=engine.block_size))
+        captured.append(spectrum)
+
+    assert not np.allclose(captured_none[0], captured_hann[0]), "windowing should change the resulting spectrum"
+
+
+def test_start_opens_requested_channel_count():
+    engine, _ = make_engine(channels=2)
+    fake_stream = MagicMock()
+    with patch("Audio_SpectraCLI.engine.sd.default") as mock_default, patch(
+        "Audio_SpectraCLI.engine.sd.InputStream", return_value=fake_stream
+    ):
+        engine.start()
+        assert mock_default.channels == 2
     engine.stop()
