@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../src/delay.ts"],
+  "sourcesContent": ["// Copyright (c) Microsoft Corporation.\n// Licensed under the MIT License.\n\nimport type { AbortOptions } from \"./aborterUtils.js\";\nimport { createAbortablePromise } from \"./createAbortablePromise.js\";\n\nconst StandardAbortMessage = \"The delay was aborted.\";\n\n/**\n * Options for support abort functionality for the delay method\n */\nexport interface DelayOptions extends AbortOptions {}\n\n/**\n * A wrapper for setTimeout that resolves a promise after timeInMs milliseconds.\n * @param timeInMs - The number of milliseconds to be delayed.\n * @param options - The options for delay - currently abort options\n * @returns Promise that is resolved after timeInMs\n */\nexport function delay(timeInMs: number, options?: DelayOptions): Promise<void> {\n  let token: ReturnType<typeof setTimeout>;\n  const { abortSignal, abortErrorMsg } = options ?? {};\n  return createAbortablePromise(\n    (resolve) => {\n      token = setTimeout(resolve, timeInMs);\n    },\n    {\n      cleanupBeforeAbort: () => clearTimeout(token),\n      abortSignal,\n      abortErrorMsg: abortErrorMsg ?? StandardAbortMessage,\n    },\n  );\n}\n"],
+  "mappings": ";;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAIA,oCAAuC;AAEvC,MAAM,uBAAuB;AAatB,SAAS,MAAM,UAAkB,SAAuC;AAC7E,MAAI;AACJ,QAAM,EAAE,aAAa,cAAc,IAAI,WAAW,CAAC;AACnD,aAAO;AAAA,IACL,CAAC,YAAY;AACX,cAAQ,WAAW,SAAS,QAAQ;AAAA,IACtC;AAAA,IACA;AAAA,MACE,oBAAoB,MAAM,aAAa,KAAK;AAAA,MAC5C;AAAA,MACA,eAAe,iBAAiB;AAAA,IAClC;AAAA,EACF;AACF;",
+  "names": []
+}

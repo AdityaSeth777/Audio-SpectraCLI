@@ -1,0 +1,102 @@
+/*! @azure/msal-node v6.0.1 2026-09-15 */
+'use strict';
+import { createClientAuthError, ClientAuthErrorCodes, Constants } from '@azure/msal-common/node';
+import { GuidGenerator } from './GuidGenerator.mjs';
+import { EncodingUtils } from '../utils/EncodingUtils.mjs';
+import { PkceGenerator } from './PkceGenerator.mjs';
+import { HashUtils } from './HashUtils.mjs';
+
+/*
+ * Copyright (c) Microsoft Corporation. All rights reserved.
+ * Licensed under the MIT License.
+ */
+/**
+ * This class implements MSAL node's crypto interface, which allows it to perform base64 encoding and decoding, generating cryptographically random GUIDs and
+ * implementing Proof Key for Code Exchange specs for the OAuth Authorization Code Flow using PKCE (rfc here: https://tools.ietf.org/html/rfc7636).
+ * @public
+ */
+class CryptoProvider {
+    constructor() {
+        // Browser crypto needs to be validated first before any other classes can be set.
+        this.pkceGenerator = new PkceGenerator();
+        this.guidGenerator = new GuidGenerator();
+        this.hashUtils = new HashUtils();
+    }
+    /**
+     * base64 URL safe encoded string
+     */
+    base64UrlEncode() {
+        throw new Error("Method not implemented.");
+    }
+    /**
+     * Stringifies and base64Url encodes input public key
+     * @param inputKid - public key id
+     * @returns Base64Url encoded public key
+     */
+    encodeKid() {
+        throw new Error("Method not implemented.");
+    }
+    /**
+     * Creates a new random GUID - used to populate state and nonce.
+     * @returns string (GUID)
+     */
+    createNewGuid() {
+        return this.guidGenerator.generateGuid();
+    }
+    /**
+     * Encodes input string to base64.
+     * @param input - string to be encoded
+     */
+    base64Encode(input) {
+        return EncodingUtils.base64Encode(input);
+    }
+    /**
+     * Decodes input string from base64.
+     * @param input - string to be decoded
+     */
+    base64Decode(input) {
+        return EncodingUtils.base64Decode(input);
+    }
+    /**
+     * Generates PKCE codes used in Authorization Code Flow.
+     */
+    generatePkceCodes() {
+        return this.pkceGenerator.generatePkceCodes();
+    }
+    /**
+     * Removes cryptographic keypair from key store matching the keyId passed in
+     * @param kid - public key id
+     * @param correlationId - correlation id
+     */
+    removeTokenBindingKey(kid, correlationId) {
+        throw new Error("Method not implemented.");
+    }
+    /**
+     * Removes all cryptographic keys from Keystore
+     * @param correlationId - correlation id
+     */
+    clearKeystore(correlationId) {
+        throw new Error("Method not implemented.");
+    }
+    /**
+     * Signs a compact JWT with a token-binding key - not yet implemented for node
+     * @param header - JOSE header
+     * @param payload - JWT payload
+     * @param kid - public key id
+     * @param correlationId - correlation id
+     */
+    signTokenBindingJwt(header, payload, kid, correlationId) {
+        throw createClientAuthError(ClientAuthErrorCodes.methodNotImplemented, correlationId);
+    }
+    /**
+     * Returns the SHA-256 hash of an input string
+     */
+    async hashString(plainText) {
+        return EncodingUtils.base64EncodeUrl(this.hashUtils
+            .sha256(plainText)
+            .toString(Constants.EncodingTypes.BASE64), Constants.EncodingTypes.BASE64);
+    }
+}
+
+export { CryptoProvider };
+//# sourceMappingURL=CryptoProvider.mjs.map

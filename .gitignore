@@ -1,5 +1,17 @@
 build/
 dist/
+# The two patterns above are unanchored, so they also match nested `dist/`
+# directories inside audiospectra-cli/node_modules (which is deliberately
+# tracked in git, unlike a normal node_modules) - silently untracking any
+# transitive dependency whose own build output happens to be named `dist`,
+# breaking it the next time node_modules is regenerated and that untracked
+# directory doesn't come back. Found via `vsce publish` crashing on a
+# missing `cockatiel/dist` (and two others: @humanfs/core, @humanfs/node,
+# http-proxy-agent) that used to be committed. Re-including them here does
+# not affect audiospectra-cli's own `dist/` (its compiled extension output,
+# correctly untracked) or web/.next, since those still match the bare
+# patterns above - only paths inside this specific node_modules tree.
+!audiospectra-cli/node_modules/**/dist/
 bitefix.egg-info/
 docs/
 __pycache__/
