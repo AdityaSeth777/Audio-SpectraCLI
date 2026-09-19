@@ -1339,7 +1339,11 @@ class AudioSpectrumVisualizer(QMainWindow):
         duration = time.monotonic() - self._session_start_time
         session_history.append_session(
             duration_seconds=duration,
-            device_name=self.device_combo.currentText() if hasattr(self, 'device_combo') else None,
+            # The raw combo text carries a "[i] " index prefix and a
+            # " (default)" suffix (see _add_device_row) - not wrong to log,
+            # but noticeably uglier in the Session History viewer than the
+            # same clean name device_profiles.py already needed.
+            device_name=self._current_device_display_name() if hasattr(self, 'device_combo') else None,
             avg_bpm=self.bpm_estimate,
         )
         self._session_start_time = None
