@@ -11,7 +11,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QMessageBox
 
 from Audio_SpectraCLI import AudioSpectrumVisualizer
 from Audio_SpectraCLI.main import VIEW_MODES
@@ -246,6 +246,50 @@ def test_save_and_load_preset_round_trip(tmp_path):
 
     window.close()
     window2.close()
+
+
+def test_named_preset_manager_save_load_rename_delete(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIOSPECTRA_CLI_HOME", str(tmp_path))
+    window = AudioSpectrumVisualizer()
+    builtin_count = window.named_preset_combo.count()
+
+    window.fs_spinbox.setValue(32000)
+    with patch("Audio_SpectraCLI.main.QInputDialog.getText", return_value=("My GUI Preset", True)):
+        window.save_named_preset()
+    assert window.named_preset_combo.count() == builtin_count + 1
+    assert window.named_preset_combo.currentText() == "My GUI Preset"
+
+    window2 = AudioSpectrumVisualizer()
+    window2.named_preset_combo.setCurrentText("My GUI Preset")
+    window2.load_named_preset()
+    assert window2.fs == 32000
+
+    with patch("Audio_SpectraCLI.main.QInputDialog.getText", return_value=("Renamed Preset", True)):
+        window.rename_named_preset()
+    assert window.named_preset_combo.currentText() == "Renamed Preset"
+    assert "My GUI Preset" not in [window.named_preset_combo.itemText(i) for i in range(window.named_preset_combo.count())]
+
+    with patch("Audio_SpectraCLI.main.QMessageBox.question", return_value=QMessageBox.Yes):
+        window.delete_named_preset()
+    assert window.named_preset_combo.count() == builtin_count
+
+    window.close()
+    window2.close()
+
+
+def test_named_preset_rename_collision_shows_warning(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIOSPECTRA_CLI_HOME", str(tmp_path))
+    window = AudioSpectrumVisualizer()
+    with patch("Audio_SpectraCLI.main.QInputDialog.getText", return_value=("Existing", True)):
+        window.save_named_preset()
+    window.named_preset_combo.setCurrentText("Existing")
+
+    with patch("Audio_SpectraCLI.main.QInputDialog.getText", return_value=("Balanced (default)", True)):
+        with patch("Audio_SpectraCLI.main.QMessageBox.warning") as mock_warn:
+            window.rename_named_preset()
+            mock_warn.assert_called_once()
+
+    window.close()
 
 
 def test_midi_checkbox_handles_unavailable_gracefully():

@@ -18,6 +18,7 @@ from PyQt5.QtWidgets import (
     QDoubleSpinBox,
     QFileDialog,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QMessageBox,
@@ -33,6 +34,7 @@ from PyQt5.QtWidgets import (
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
+from . import presets as preset_store
 from .analysis import BeatDetector, downsample_max_pool, magnitude_to_db, nearest_musical_note
 from .engine import AudioSpectrumEngine
 from .midi_out import MidiNoteSender, MidiUnavailableError, frequency_to_midi_note
@@ -177,6 +179,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         self._add_device_row()
         self._add_export_row()
         self._add_preset_row()
+        self._add_named_preset_row()
         self._add_midi_checkbox()
 
         self.start_button = QPushButton('Start Visualization')
@@ -387,6 +390,36 @@ class AudioSpectrumVisualizer(QMainWindow):
 
         row.addWidget(save_button)
         row.addWidget(load_button)
+        self.layout.addLayout(row)
+
+    def _add_named_preset_row(self):
+        """A named-preset manager (list/save-as/load/rename/delete against
+        the fixed presets directory), distinct from the file-picker based
+        save/load above which round-trips through an arbitrary path.
+        """
+        row = QHBoxLayout()
+
+        self.named_preset_combo = QComboBox()
+        self._refresh_named_preset_combo()
+
+        save_as_button = QPushButton('Save As...')
+        save_as_button.clicked.connect(self.save_named_preset)
+
+        load_named_button = QPushButton('Load')
+        load_named_button.clicked.connect(self.load_named_preset)
+
+        rename_button = QPushButton('Rename')
+        rename_button.clicked.connect(self.rename_named_preset)
+
+        delete_button = QPushButton('Delete')
+        delete_button.clicked.connect(self.delete_named_preset)
+
+        row.addWidget(QLabel('Presets:'))
+        row.addWidget(self.named_preset_combo, stretch=1)
+        row.addWidget(save_as_button)
+        row.addWidget(load_named_button)
+        row.addWidget(rename_button)
+        row.addWidget(delete_button)
         self.layout.addLayout(row)
 
     def _add_midi_checkbox(self):
@@ -825,6 +858,74 @@ class AudioSpectrumVisualizer(QMainWindow):
             # (e.g. frequency_range not a 2-element list), previously raised
             # straight out of this button-click slot uncaught.
             QMessageBox.warning(self, 'Load failed', f'Could not load preset: {exc}')
+
+    def _refresh_named_preset_combo(self, select=None):
+        self.named_preset_combo.blockSignals(True)
+        self.named_preset_combo.clear()
+        try:
+            names = preset_store.list_presets()
+        except OSError as exc:
+            QMessageBox.warning(self, 'Presets unavailable', f'Could not read the presets directory: {exc}')
+            names = []
+        self.named_preset_combo.addItems(names)
+        if select is not None:
+            index = self.named_preset_combo.findText(select)
+            if index >= 0:
+                self.named_preset_combo.setCurrentIndex(index)
+        self.named_preset_combo.blockSignals(False)
+
+    def save_named_preset(self):
+        name, ok = QInputDialog.getText(self, 'Save Preset As', 'Preset name:')
+        if not ok or not name.strip():
+            return
+        try:
+            preset_store.save_preset(None, name.strip(), self._current_settings_dict())
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, 'Save failed', f'Could not save preset: {exc}')
+            return
+        self._refresh_named_preset_combo(select=name.strip())
+
+    def load_named_preset(self):
+        name = self.named_preset_combo.currentText()
+        if not name:
+            return
+        try:
+            settings = preset_store.load_preset(None, name)
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, 'Load failed', f'Could not load preset: {exc}')
+            return
+        self.apply_settings_dict(settings)
+
+    def rename_named_preset(self):
+        old_name = self.named_preset_combo.currentText()
+        if not old_name:
+            return
+        new_name, ok = QInputDialog.getText(self, 'Rename Preset', 'New name:', text=old_name)
+        if not ok or not new_name.strip() or new_name.strip() == old_name:
+            return
+        try:
+            preset_store.rename_preset(None, old_name, new_name.strip())
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, 'Rename failed', f'Could not rename preset: {exc}')
+            return
+        self._refresh_named_preset_combo(select=new_name.strip())
+
+    def delete_named_preset(self):
+        name = self.named_preset_combo.currentText()
+        if not name:
+            return
+        confirm = QMessageBox.question(
+            self, 'Delete Preset', f"Delete preset '{name}'? This can't be undone.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+        try:
+            preset_store.delete_preset(None, name)
+        except OSError as exc:
+            QMessageBox.warning(self, 'Delete failed', f'Could not delete preset: {exc}')
+            return
+        self._refresh_named_preset_combo()
 
     def apply_settings_dict(self, settings):
         """Applies a settings dict (from load_preset, or a test) to the UI controls.
