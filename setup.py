@@ -25,7 +25,9 @@ setup(
         'wheel',
         'pyqt5',
         'scipy',
-        'pyaudio'
+        'pyaudio',
+        'mido',
+        'python-rtmidi'
     ],
     license="Apache License 2.0",
     url="https://github.com/AdityaSeth777/Audio-SpectraCLI",

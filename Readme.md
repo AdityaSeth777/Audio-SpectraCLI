@@ -39,7 +39,9 @@
 ## Current Features (with respect to 4.1.0)
 
 - Real-time visualization of Fast Fourier Transform (FFT) spectrum of audio input.
-- Live VS Code Extension support.
+- Live VS Code Extension support - the extension now spawns a real headless
+  audio process and streams the spectrum into a live webview canvas (see
+  [Web & Extension Additions](#web--extension-additions) below).
 - Support for adjusting parameters such as duration, sampling rate, and block size.
 - Seamless integration with SoundDevice for audio input capture.
 - Customizable Frequency Range: Allow users to specify the frequency range to display in the spectrum.
@@ -47,6 +49,53 @@
 - Added PyQt5 modules and a Gaussian filter that enables user input for Duration (in seconds), Sampling Rate (in Hz), Block Size, and also smoothens the output.
 - Might need to keep in mind that the Gaussian filter is too strong and it won't recognise any noise and display it's spectra. Only actual input through mic such as conversations and music are displayed which can be categorised as real inputs or audio, and of course in real time.
 - Much more dynamic and user-controlled interface.
+- A headless, GUI-free streaming mode (`python -m Audio_SpectraCLI.headless`)
+  that emits spectrum frames as JSON lines - the same audio/FFT engine that
+  powers the GUI, usable from scripts or other tools without PyQt5 installed.
+- The GUI redraws at a fixed ~30fps from the latest audio frame rather than
+  redrawing on every single incoming audio block. Real microphone input can
+  deliver far more blocks per second than a matplotlib redraw can keep up
+  with, which previously could back up the GUI's event queue and, on some
+  PyQt5/sip builds, crash the whole app outright after sustained use. Any
+  error during a redraw is now also caught and logged instead of being
+  allowed to propagate and abort the process.
+- The GUI's canvas now resizes properly on window maximize (no clipped axis
+  labels), and every slider (Duration/Sampling Rate/Block Size/Noise
+  Threshold) has a paired numeric spinbox next to it - the exact value is
+  always visible and directly typeable, not just draggable.
+- Five view modes: **Line** (the original), **Bars** (equalizer-style),
+  **Waterfall** (scrolling history spectrogram), **Circular** (radial
+  display), and **Tuner** (big musical-note readout for the dominant
+  frequency, e.g. "A4 · 441.4 Hz · +6 cents").
+- **dB (logarithmic) scale** toggle, **windowing function** choice
+  (None/Hann/Hamming/Blackman) to reduce spectral leakage, an adjustable
+  **noise threshold** and **Gaussian smoothing strength** (previously
+  hardcoded), and **stereo channel selection** (Mono mix/Left/Right -
+  previously always forced mono).
+- **Peak-hold markers** (Line/Bars views) - a line that holds at the recent
+  peak and decays, like a hardware audio meter.
+- **Live BPM estimation** and a **dominant-note readout**, always shown
+  above the canvas regardless of view mode. The BPM estimate is a simple
+  onset/energy heuristic, not lab-grade beat tracking - expect it to be
+  unstable on non-rhythmic input, that's inherent to how simple it is.
+- **Export** the current view as PNG (also bound to Ctrl+S) or the current
+  frame's data as CSV, and **record microphone input to a WAV file**.
+- **Save/load setting presets** to a local JSON file.
+- **In-GUI microphone selection** (previously only choosable via the
+  `launch.py` interactive launcher at startup) - swap devices from a
+  dropdown before clicking Start; changing it while running is disabled,
+  the same way sampling rate/block size are, since a live stream can't be
+  reconfigured without reopening it.
+- **MIDI-out**: converts the dominant frequency to a MIDI note and sends it
+  to a virtual MIDI port, turning the visualizer into a simple audio-to-MIDI
+  tool. `mido`/`python-rtmidi` are core dependencies (installed
+  automatically by `requirements.txt`/`pip install Audio-SpectraCLI`/the
+  interactive launcher's `.venv` setup) - but the checkbox still degrades
+  gracefully with a clear explanation instead of crashing if they're somehow
+  missing or fail to build in a given environment. Windows has no native
+  virtual MIDI port support without a third-party loopback driver like
+  loopMIDI; the same message covers that case too. A stuck note is released
+  automatically both when input goes quiet for 0.5s and when you click Stop.
 
 ## Packaging
 
@@ -62,6 +111,10 @@ Audio-SpectraCLI/
 ├── requirements.txt
 ├── setup.cfg
 ├── setup.py
+├── launch.py           # interactive cross-platform launcher (see Instant Launch)
+├── run.sh              # canonical launcher entry point for macOS/Linux terminals: ./run.sh
+├── run.command         # thin double-click wrapper around run.sh, for macOS/Linux Finder
+├── run.bat             # double-click/terminal entry point for Windows
 ├── .github/
 │   └── workflows/
 │       ├── docker-publish.yml
@@ -69,30 +122,120 @@ Audio-SpectraCLI/
 │       └── python-publish.yml
 ├── Audio_SpectraCLI/
 │   ├── main-old.py
-│   ├── main.py
+│   ├── main.py           # PyQt5 GUI, now built on engine.py
+│   ├── engine.py         # Qt-independent capture/FFT/smoothing core, shared by main.py and headless.py
+│   ├── analysis.py       # pure DSP helpers: windowing, dB conversion, note naming, BPM estimation
+│   ├── midi_out.py       # optional MIDI-out (gracefully degrades if python-rtmidi isn't installed)
+│   ├── headless.py       # `python -m Audio_SpectraCLI.headless` JSON-streaming CLI mode
 │   └── __init__.py
-└── tests/
-├── ├── test-old.py
-├── └── test.py
-└── audiospectra-cli/
-    ├── assets
-    ├── dist
-    ├── src/
-    │   ├── test
-    │   ├── extension.test.ts
-    │   └── extension.ts
-    ├── audio-spectracli-extension-v.vsix
-    ├── CHANGELOG.md
-    ├── ebuild.js
-    ├── eslint.config.mjs
-    ├── package.json
-    ├── package-lock.json
-    ├── README.md
-    ├── sample.py
-    └── tsconfig.json
+├── tests/
+│   ├── test-old.py
+│   ├── test.py
+│   ├── test_engine.py
+│   ├── test_headless.py
+│   ├── test_analysis.py
+│   ├── test_midi_out.py
+│   ├── test_gui_smoke.py
+│   ├── test_gui_stress.py
+│   ├── test_gui_controls.py
+│   └── test_gui_features.py
+├── audiospectra-cli/         # VS Code extension (now with a real live webview)
+│   ├── assets
+│   ├── dist
+│   ├── src/
+│   │   ├── test
+│   │   ├── extension.test.ts
+│   │   ├── extension.ts
+│   │   ├── visualizerPanel.ts
+│   │   ├── lineParser.ts
+│   │   └── lineParser.test.ts
+│   ├── audio-spectracli-extension-v.vsix
+│   ├── CHANGELOG.md
+│   ├── esbuild.js
+│   ├── eslint.config.mjs
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── README.md
+│   ├── sample.py
+│   └── tsconfig.json
+└── web/                       # Next.js SaaS app: hosted visualizer, accounts/billing, analysis API
+    ├── app/
+    ├── components/
+    ├── lib/
+    └── README.md
 ```
 
 ## Installation Methods : (Now Extension available)
+
+<details open>
+
+<summary> Instant Launch (interactive script - double-click and go)</summary>
+
+If you already have the repo (`git clone` or downloaded), the fastest way to
+run the native GUI is the interactive launcher - it sits alongside every
+other installation method below, it doesn't replace them.
+
+- **macOS/Linux, from a terminal**: `./run.sh` - this is the canonical
+  entry point; read it if you want to know exactly what runs.
+- **macOS/Linux, by double-clicking in Finder**: double-click
+  **`run.command`** - Finder normally opens a plain `.sh` file in a text
+  editor instead of running it, so `run.command` exists purely as a thin
+  wrapper that calls `run.sh` for that double-click case. It contains no
+  logic of its own.
+- **Windows**: double-click **`run.bat`** (or run it from a terminal).
+- **Any OS directly**: `python3 launch.py` (or `python launch.py`).
+
+It detects your OS and Python version, checks whether `numpy`/`scipy`/
+`sounddevice`/`matplotlib`/`PyQt5` are installed. If any are missing, it
+offers to set up a local `.venv` next to the script and install them there
+- it deliberately never tries to `pip install` straight into your system
+Python, since modern Homebrew/python.org Python (and recent Linux distros)
+refuse that with an "externally-managed-environment" error. After that
+one-time setup, it lists your real audio input devices (via
+`sounddevice.query_devices()`) so you can pick one (or just hit Enter for
+the system default) - this is the only thing it asks, since it's the one
+setting the GUI itself has no way to know. It then opens the GUI and starts
+visualizing immediately, no extra click. Duration, sampling rate, and block
+size are **not** asked in the terminal, since the GUI already has sliders
+for all three once it's open - asking twice for the same thing would just
+be redundant. Once `.venv` exists, later runs skip the setup check entirely
+and go straight to the device prompt.
+
+#### First time on macOS, step by step
+
+1. **Get Python 3**, if you don't already have it: open Terminal and run
+   `python3 --version`. If that fails, install Python from
+   [python.org](https://python.org) (or `brew install python3` if you use
+   Homebrew), then try again.
+2. **Get the repo**: `git clone https://github.com/AdityaSeth777/Audio-SpectraCLI.git`
+   (or download and unzip it from GitHub).
+3. **Run it**: either open Terminal, `cd` into the repo folder, and run
+   `./run.sh` - or double-click `run.command` in Finder.
+   - Double-click, first time only: macOS may refuse to run it with an
+     "unidentified developer" warning, since it isn't code-signed.
+     Right-click (or Control-click) `run.command` → **Open** → confirm in
+     the dialog. You only need to do this once.
+4. **The launcher runs.** If packages are missing, it asks: `Set them up
+   now in a local .venv (won't touch your system Python)? [Y/n]` - press
+   Enter or `y`. This downloads and installs `numpy`/`scipy`/`sounddevice`/
+   `matplotlib`/`PyQt5` into a `.venv` folder it creates next to the script
+   (takes a minute or two; only happens once).
+5. **Grant microphone access** when macOS prompts for it (a system dialog
+   asking to let Terminal/Python use the microphone) - click **Allow**. If
+   you miss it or previously denied it, go to **System Settings → Privacy
+   & Security → Microphone** and enable it for Terminal yourself.
+6. **Pick an audio input device** from the list it prints (or just press
+   Enter for the default) - that's the only prompt.
+7. The **GUI window opens and starts visualizing immediately** - speak or
+   play audio near the selected microphone and you should see the spectrum
+   move. Adjust duration/sampling rate/block size using the sliders inside
+   the GUI itself.
+
+---
+
+</details>
+
+----
 
 <details>
 
@@ -324,11 +467,45 @@ Once you have activated the audio_visualizer instance, feel free to use it where
 
 ---
 
+## Web & Extension Additions
+
+Audio-SpectraCLI is expanding beyond the native Python CLI into a small
+family of products that all sit on top of the same FFT/DSP approach:
+
+- **Hosted web visualizer** (`web/`) - a Next.js app with a client-side
+  (browser-only, mic audio never leaves the device) visualizer, free vs.
+  paid tiers (waterfall/tuner/export/presets are paid), Clerk accounts, and
+  Stripe subscription billing. See [web/README.md](./web/README.md) for
+  setup - it needs your own Clerk, Stripe, and Postgres (Neon) credentials
+  to run.
+- **Live VS Code extension** (`audiospectra-cli/`) - the extension now
+  spawns `python -m Audio_SpectraCLI.headless` and streams the live
+  spectrum into a real webview panel inside VS Code (`Audio-SpectraCLI:
+  Start/Stop Live Visualization`), instead of only inserting a code
+  snippet. Requires Python + this package installed and on your `PATH`
+  (configurable via the `audioSpectraCli.pythonPath` setting). See
+  [audiospectra-cli/README.md](./audiospectra-cli/README.md).
+- **Data/Analysis API** (`web/app/api/v1/analyze`) - a server-side HTTP API
+  for third parties: send WAV audio or raw PCM samples, get back spectrum
+  and dominant-frequency JSON. Authenticated with per-account API keys,
+  rate-limited, and billed on a usage basis. See
+  [web/README.md](./web/README.md) for the request/response shape.
+
+The native Python CLI (`main.py`/`AudioSpectrumVisualizer`) is unaffected -
+it now runs on the same shared `engine.py` internally, but its behavior and
+public API are unchanged.
+
 ## Upcoming Features
 
-- Save and Export: Implement functionality to save the generated spectrum as an image file or export data for further analysis.
-- CLI endpoints.
-- Option to choose between CLI/GUI.
+- CLI endpoints. ✅ Done - see `python -m Audio_SpectraCLI.headless` above.
+- Save and Export: ✅ Done in the web visualizer (PNG export, paid tier).
+  Native GUI export is still open.
+- Option to choose between CLI/GUI. ✅ Done - `main.py` (GUI) vs.
+  `headless.py` (CLI/JSON streaming) both run on the same engine.
+- Server-side decoding of compressed audio formats (MP3/AAC) for the
+  Analysis API - currently WAV-only.
+- A shared, multi-instance-safe rate limiter (e.g. Redis/Upstash) for the
+  Analysis API - the current one is in-memory, single-instance only.
 
 ---
 

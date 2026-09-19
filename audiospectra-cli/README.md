@@ -32,6 +32,9 @@
 ## Current Features (with respect to 4.1.0)
 
 - Real-time visualization of Fast Fourier Transform (FFT) spectrum of audio input.
+- **Live in-editor visualization**: the extension spawns a headless Python
+  process and streams the spectrum into a real VS Code webview panel (see
+  "Using the Commands" below) - not just a code-snippet inserter.
 - Support for adjusting parameters such as duration, sampling rate, and block size.
 - Seamless integration with SoundDevice for audio input capture.
 - Customizable Frequency Range: Allow users to specify the frequency range to display in the spectrum.
@@ -102,12 +105,30 @@ Follow these steps to use the Audio-SpectraCLI extension in Visual Studio Code:
    - Search for "Audio-SpectraCLI" in the Extensions Marketplace.
    - Click **Install** next to the Audio-SpectraCLI extension.
 
-3. **Activate the Extension**
-   - After installation, open the Command Palette by pressing `F1` or `Ctrl+Shift+P` on Windows/Linux or `Cmd+Shift+P` on macOS.
-   - Type `>Audio-SpectraCLI: Add Sample Code` or `>Audio-SpectraCLI: View Status`.
-   - Select either command to activate and use the extension.
+3. **Install the Python package**
+   - The live visualizer commands (below) spawn a Python process, so you
+     need `Audio_SpectraCLI` installed and on your `PATH`:
+     `pip install Audio-SpectraCLI` (see the pip installation section
+     further down, or the [root README](../Readme.md)).
+   - If your Python executable isn't named `python3` or isn't on `PATH`,
+     set it in VS Code settings under `audioSpectraCli.pythonPath`.
 
-4. **Using the Commands**
+4. **Activate the Extension**
+   - After installation, open the Command Palette by pressing `F1` or `Ctrl+Shift+P` on Windows/Linux or `Cmd+Shift+P` on macOS.
+   - Type `>Audio-SpectraCLI` to see all available commands.
+
+5. **Using the Commands**
+   - **Start Live Visualization**: Opens a webview panel inside VS Code and
+     streams a real, live FFT spectrum from your microphone into it.
+     - Run `Audio-SpectraCLI: Start Live Visualization` from the Command Palette.
+     - Behind the scenes this spawns `python -m Audio_SpectraCLI.headless`
+       and renders its streamed JSON frames on a canvas - no matplotlib/Qt
+       window pops up, everything renders inside the VS Code panel.
+     - Configurable via the `audioSpectraCli.sampleRate`,
+       `audioSpectraCli.blockSize`, and `audioSpectraCli.bars` settings.
+   - **Stop Live Visualization**: Stops the spawned process and closes the panel.
+     - Run `Audio-SpectraCLI: Stop Live Visualization` from the Command Palette
+       (or just close the panel).
    - **Add Sample Code**: Inserts sample code for Audio-SpectraCLI into the current editor window.
      - Open any Python file or create a new one.
      - Run the command `Audio-SpectraCLI: Add Sample Code` from the Command Palette.
@@ -116,11 +137,11 @@ Follow these steps to use the Audio-SpectraCLI extension in Visual Studio Code:
      - Run the command `Audio-SpectraCLI: View Status` from the Command Palette.
      - You’ll see a notification indicating that Audio-SpectraCLI is ready to use.
 
-5. **Verify the Extension**
+6. **Verify the Extension**
    - Ensure that the Audio-SpectraCLI commands work as expected by following the steps above.
    - You should see notifications for the status and sample code added in the editor.
 
-6. **Customize as Needed**
+7. **Customize as Needed**
    - You can modify the inserted code or use the extension as a reference for developing your own custom scripts with Audio-SpectraCLI.
 
 > **Note**: If you encounter issues, check the extension's [README](./README.md) or reach out to contact@adityaseth.in support for troubleshooting.

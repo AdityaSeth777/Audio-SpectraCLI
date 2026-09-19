@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { LiveVisualizerPanel } from './visualizerPanel';
 
 // Command to insert Audio-SpectraCLI code into the active editor
 function addSpectraCode() {
@@ -28,18 +29,37 @@ function viewSpectraCLIStatus() {
     vscode.window.showInformationMessage('Audio-SpectraCLI is ready to use!');
 }
 
+// Command to open the live, in-editor spectrum visualizer webview, backed by
+// a spawned `python -m Audio_SpectraCLI.headless` process.
+function startLiveVisualization(context: vscode.ExtensionContext) {
+    LiveVisualizerPanel.createOrShow(context.extensionUri);
+}
+
+// Command to stop and dispose the live visualizer, if one is running.
+function stopLiveVisualization() {
+    if (LiveVisualizerPanel.current) {
+        LiveVisualizerPanel.current.dispose();
+    } else {
+        vscode.window.showInformationMessage('Audio-SpectraCLI: no live visualization is running.');
+    }
+}
+
 // Activation function
 export function activate(context: vscode.ExtensionContext) {
     console.log('Audio-SpectraCLI extension is now active.');
 
     let addCodeCommand = vscode.commands.registerCommand('extension.addSpectraCode', addSpectraCode);
     let viewStatusCommand = vscode.commands.registerCommand('extension.viewSpectraCLIStatus', viewSpectraCLIStatus);
+    let startLiveCommand = vscode.commands.registerCommand('extension.startLiveVisualization', () =>
+        startLiveVisualization(context),
+    );
+    let stopLiveCommand = vscode.commands.registerCommand('extension.stopLiveVisualization', stopLiveVisualization);
 
-    context.subscriptions.push(addCodeCommand);
-    context.subscriptions.push(viewStatusCommand);
+    context.subscriptions.push(addCodeCommand, viewStatusCommand, startLiveCommand, stopLiveCommand);
 }
 
 // Deactivation function
 export function deactivate() {
+    LiveVisualizerPanel.current?.dispose();
     console.log('Audio-SpectraCLI extension deactivated.');
 }
