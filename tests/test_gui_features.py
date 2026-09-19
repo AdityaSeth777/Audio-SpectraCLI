@@ -110,14 +110,31 @@ def test_window_type_and_channel_mode_controls_update_live_engine():
 
 
 def test_channel_mode_left_or_right_opens_stereo_stream():
+    """channels-to-open is now resolved from the actual device's reported
+    max_input_channels (_resolve_channel_count), not hardcoded from
+    channel_mode alone — a genuinely mono-only device must not be asked to
+    open 2 channels. Simulate a stereo-capable device here."""
     window = AudioSpectrumVisualizer()
     window.channel_mode_combo.setCurrentText("Left")
 
-    with patch("Audio_SpectraCLI.engine.sd.default") as mock_default, patch(
-        "Audio_SpectraCLI.engine.sd.InputStream", return_value=MagicMock()
-    ):
+    with patch("Audio_SpectraCLI.main.sd.query_devices", return_value={"max_input_channels": 2}), patch(
+        "Audio_SpectraCLI.engine.sd.default"
+    ) as mock_default, patch("Audio_SpectraCLI.engine.sd.InputStream", return_value=MagicMock()):
         window.toggle_visualization()
         assert mock_default.channels == 2
+        window.toggle_visualization()
+    window.close()
+
+
+def test_channel_mode_falls_back_to_mono_on_a_mono_only_device():
+    window = AudioSpectrumVisualizer()
+    window.channel_mode_combo.setCurrentText("Left")
+
+    with patch("Audio_SpectraCLI.main.sd.query_devices", return_value={"max_input_channels": 1}), patch(
+        "Audio_SpectraCLI.engine.sd.default"
+    ) as mock_default, patch("Audio_SpectraCLI.engine.sd.InputStream", return_value=MagicMock()):
+        window.toggle_visualization()
+        assert mock_default.channels == 1
         window.toggle_visualization()
     window.close()
 

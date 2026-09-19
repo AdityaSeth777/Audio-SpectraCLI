@@ -5,6 +5,7 @@
 
 import csv
 import json
+import time
 
 import numpy as np
 import sounddevice as sd
@@ -39,6 +40,7 @@ from .midi_out import MidiNoteSender, MidiUnavailableError, frequency_to_midi_no
 RENDER_INTERVAL_MS = 33  # ~30fps redraw cap, independent of the audio block rate
 GAUSSIAN_SMOOTHING_SIGMA = 2  # matches AudioSpectrumEngine's own default; 0 effectively disables smoothing
 PEAK_HOLD_DECAY = 0.92  # per-frame multiplicative decay of the held peak
+MIDI_SILENCE_TIMEOUT_S = 0.5  # send a MIDI note-off if no new spectrum frame arrives for this long
 WATERFALL_HISTORY_ROWS = 60
 WATERFALL_WIDTH = 200  # fixed column count per row, independent of block_size
 BARS_COUNT = 64
@@ -98,6 +100,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.bpm_estimate = None
         self.midi_enabled = False
         self.midi_sender = None
+        self._last_spectrum_frame_time = None
 
         self.engine = None
         # The engine's background thread calls _on_engine_spectrum for every
@@ -397,8 +400,11 @@ class AudioSpectrumVisualizer(QMainWindow):
         # Called from the engine's background thread — must stay cheap and
         # must never touch Qt widgets directly from here.
         self._latest_frame = (freq_bins, spectrum, max_magnitude)
+        self._last_spectrum_frame_time = time.monotonic()
 
     def _render_latest_frame(self):
+        self._check_midi_silence_timeout()
+
         frame = self._latest_frame
         if frame is None:
             return
@@ -569,6 +575,24 @@ class AudioSpectrumVisualizer(QMainWindow):
         if midi_note is not None:
             self.midi_sender.send_note_for_frequency(midi_note)
 
+    def _check_midi_silence_timeout(self):
+        """Sends a MIDI note-off once input has been quiet for a while.
+
+        send_note_for_frequency only emits a note-off when a DIFFERENT note
+        comes in — but engine.py's callback stops firing entirely once the
+        signal drops below noise_threshold, so without this, the last note
+        sent before things went quiet would sustain forever (a stuck note
+        on whatever's listening to the virtual MIDI port) instead of ever
+        being released.
+        """
+        if not self.midi_enabled or self.midi_sender is None:
+            return
+        if self._last_spectrum_frame_time is None:
+            return
+        if time.monotonic() - self._last_spectrum_frame_time > MIDI_SILENCE_TIMEOUT_S:
+            self.midi_sender.stop()
+            self._last_spectrum_frame_time = None  # don't call stop() again every tick until a new frame arrives
+
     # ---- setters wired to controls -------------------------------------
 
     def set_duration(self, value):
@@ -694,8 +718,15 @@ class AudioSpectrumVisualizer(QMainWindow):
 
     def export_png(self):
         path, _ = QFileDialog.getSaveFileName(self, 'Export current view as PNG', 'spectrum.png', 'PNG Files (*.png)')
-        if path:
+        if not path:
+            return
+        try:
             self.canvas.figure.savefig(path)
+        except Exception as exc:
+            # File I/O (permission denied, disk full, bad path, ...) run
+            # directly inside a button-click Qt slot must not be allowed to
+            # raise uncaught — same crash class as the render-path fixes.
+            QMessageBox.warning(self, 'Export failed', f'Could not save PNG: {exc}')
 
     def export_csv(self):
         if self._latest_frame is None:
@@ -705,10 +736,13 @@ class AudioSpectrumVisualizer(QMainWindow):
         if not path:
             return
         freq_bins, spectrum, _max_magnitude = self._latest_frame
-        with open(path, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(['frequency_hz', 'magnitude'])
-            writer.writerows(zip(freq_bins.tolist(), spectrum.tolist()))
+        try:
+            with open(path, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(['frequency_hz', 'magnitude'])
+                writer.writerows(zip(freq_bins.tolist(), spectrum.tolist()))
+        except Exception as exc:
+            QMessageBox.warning(self, 'Export failed', f'Could not save CSV: {exc}')
 
     def toggle_recording(self):
         if self.engine is None:
@@ -738,7 +772,10 @@ class AudioSpectrumVisualizer(QMainWindow):
             return
         path, _ = QFileDialog.getSaveFileName(self, 'Save recording', 'recording.wav', 'WAV Files (*.wav)')
         if path:
-            self._write_wav(path, samples, self.fs)
+            try:
+                self._write_wav(path, samples, self.fs)
+            except Exception as exc:
+                QMessageBox.warning(self, 'Save failed', f'Could not save recording: {exc}')
 
     @staticmethod
     def _write_wav(path, samples, sample_rate):
@@ -769,16 +806,25 @@ class AudioSpectrumVisualizer(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(self, 'Save preset', 'preset.json', 'JSON Files (*.json)')
         if not path:
             return
-        with open(path, 'w') as f:
-            json.dump(self._current_settings_dict(), f, indent=2)
+        try:
+            with open(path, 'w') as f:
+                json.dump(self._current_settings_dict(), f, indent=2)
+        except Exception as exc:
+            QMessageBox.warning(self, 'Save failed', f'Could not save preset: {exc}')
 
     def load_preset(self):
         path, _ = QFileDialog.getOpenFileName(self, 'Load preset', '', 'JSON Files (*.json)')
         if not path:
             return
-        with open(path) as f:
-            settings = json.load(f)
-        self.apply_settings_dict(settings)
+        try:
+            with open(path) as f:
+                settings = json.load(f)
+            self.apply_settings_dict(settings)
+        except Exception as exc:
+            # A malformed/non-JSON file, or one with an unexpected shape
+            # (e.g. frequency_range not a 2-element list), previously raised
+            # straight out of this button-click slot uncaught.
+            QMessageBox.warning(self, 'Load failed', f'Could not load preset: {exc}')
 
     def apply_settings_dict(self, settings):
         """Applies a settings dict (from load_preset, or a test) to the UI controls.
@@ -843,11 +889,19 @@ class AudioSpectrumVisualizer(QMainWindow):
             self.engine = None
             self._latest_frame = None
             self.beat_detector = None
+            self._last_spectrum_frame_time = None
+            if self.midi_sender is not None:
+                # Otherwise a note started before Stop was clicked has no
+                # more frames coming (the silence-timeout check above only
+                # runs while the render timer still has a reason to care) —
+                # it would stay stuck on until a different pitch is next
+                # detected in some future session.
+                self.midi_sender.stop()
             self.device_combo.setEnabled(True)
             self.start_button.setText('Start Visualization')
         else:
-            channels = 2 if self.channel_mode in ("left", "right") else 1
-            self.engine = AudioSpectrumEngine(
+            channels = self._resolve_channel_count()
+            new_engine = AudioSpectrumEngine(
                 on_spectrum=self._on_engine_spectrum,
                 fs=self.fs,
                 block_size=self.block_size,
@@ -858,10 +912,40 @@ class AudioSpectrumVisualizer(QMainWindow):
                 channel_mode=self.channel_mode,
                 window_type=self.window_type,
             )
-            self.engine.start()
+            try:
+                new_engine.start()
+            except Exception as exc:
+                # sd.InputStream(...)/.start() raise on ordinary, easily-hit
+                # conditions (device unplugged, unsupported fs/channels for
+                # that device, device now busy) — completely uncaught here
+                # would crash the Start button's click slot outright on this
+                # PyQt5/sip build, the same way every other fix in this file
+                # exists to prevent.
+                QMessageBox.warning(self, 'Could not start', f'Could not start audio capture: {exc}')
+                return
+
+            self.engine = new_engine
             self.beat_detector = BeatDetector()
             self.device_combo.setEnabled(False)
             self.start_button.setText('Stop Visualization')
+
+    def _resolve_channel_count(self):
+        """Picks how many channels to actually open on the input stream.
+
+        "Mono (mix)" is supposed to average L+R down to mono, but that
+        requires opening 2 channels to have anything to average — opening
+        only 1 (as this used to do unconditionally) meant `_select_channel`
+        always hit its "already mono" fast path first and the averaging
+        branch was unreachable. This asks the device what it actually
+        supports first, so a genuinely mono-only device still gets
+        channels=1 instead of a request InputStream would reject.
+        """
+        try:
+            device_index = self.device if self.device is not None else sd.default.device[0]
+            max_input_channels = sd.query_devices(device_index)['max_input_channels']
+        except Exception:
+            max_input_channels = 1
+        return max(1, min(2, max_input_channels))
 
     def closeEvent(self, event):
         if self.engine is not None:

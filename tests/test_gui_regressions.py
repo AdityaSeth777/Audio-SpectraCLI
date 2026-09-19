@@ -4,6 +4,7 @@ name states the bug it guards against.
 """
 
 import os
+import time
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -115,6 +116,107 @@ def test_loading_a_preset_applies_a_non_overlapping_frequency_range_correctly():
     assert window.frequency_range == (0, 2500)
     assert window.freq_min_spinbox.value() == 0
     assert window.freq_max_spinbox.value() == 2500
+    window.close()
+
+
+def test_load_preset_with_malformed_json_shows_warning_instead_of_crashing(tmp_path):
+    """Bug: load_preset's json.load()/apply_settings_dict() call ran
+    unguarded inside a button-click Qt slot — a non-JSON file raised
+    json.JSONDecodeError straight out of the slot uncaught."""
+    window = AudioSpectrumVisualizer()
+    bad_file = tmp_path / "not_json.json"
+    bad_file.write_text("this is not valid json {{{")
+
+    with patch("Audio_SpectraCLI.main.QFileDialog.getOpenFileName", return_value=(str(bad_file), "")):
+        with patch("Audio_SpectraCLI.main.QMessageBox.warning") as mock_warn:
+            window.load_preset()  # must not raise
+            mock_warn.assert_called_once()
+    window.close()
+
+
+def test_load_preset_with_wrong_shape_shows_warning_instead_of_crashing(tmp_path):
+    """A syntactically valid JSON file whose frequency_range isn't a
+    2-element list must not crash the button-click slot either."""
+    import json as json_module
+
+    window = AudioSpectrumVisualizer()
+    bad_file = tmp_path / "wrong_shape.json"
+    bad_file.write_text(json_module.dumps({"frequency_range": [1, 2, 3]}))
+
+    with patch("Audio_SpectraCLI.main.QFileDialog.getOpenFileName", return_value=(str(bad_file), "")):
+        with patch("Audio_SpectraCLI.main.QMessageBox.warning") as mock_warn:
+            window.load_preset()  # must not raise
+            mock_warn.assert_called_once()
+    window.close()
+
+
+def test_export_png_to_an_unwritable_path_shows_warning_instead_of_crashing():
+    window = AudioSpectrumVisualizer()
+    window._latest_frame = _tone_frame(window)
+    window.update_plot(*window._latest_frame)
+
+    with patch("Audio_SpectraCLI.main.QFileDialog.getSaveFileName", return_value=("/nonexistent_dir/out.png", "")):
+        with patch("Audio_SpectraCLI.main.QMessageBox.warning") as mock_warn:
+            window.export_png()  # must not raise
+            mock_warn.assert_called_once()
+    window.close()
+
+
+def test_engine_start_failure_shows_warning_instead_of_crashing():
+    """Bug: sd.InputStream(...)/.start() raise on ordinary conditions
+    (device unplugged, unsupported fs/channels) and ran completely
+    unguarded inside the Start button's click slot."""
+    window = AudioSpectrumVisualizer()
+
+    with patch("Audio_SpectraCLI.engine.sd.InputStream", side_effect=RuntimeError("device unavailable")):
+        with patch("Audio_SpectraCLI.main.QMessageBox.warning") as mock_warn:
+            window.toggle_visualization()  # must not raise
+            mock_warn.assert_called_once()
+
+    assert window.engine is None, "a failed start must not leave a half-started engine assigned"
+    assert window.start_button.text() == "Start Visualization"
+    assert window.device_combo.isEnabled() is True
+    window.close()
+
+
+def test_midi_note_off_sent_when_stopping_while_a_note_is_sounding():
+    """Bug: Stop Visualization never touched self.midi_sender, so a note
+    started before Stop was clicked stayed on indefinitely."""
+    window = AudioSpectrumVisualizer()
+    fake_sender = MagicMock()
+    window.midi_enabled = True
+    window.midi_sender = fake_sender
+
+    with patch("Audio_SpectraCLI.engine.sd.InputStream", return_value=MagicMock()):
+        window.toggle_visualization()  # start
+        window.toggle_visualization()  # stop
+
+    fake_sender.stop.assert_called_once()
+    window.close()
+
+
+def test_midi_note_off_sent_after_silence_timeout():
+    """Bug: send_note_for_frequency only sends note-off when a DIFFERENT
+    note arrives, but engine.py's callback stops firing entirely once
+    input goes quiet — so without an explicit silence watchdog, the last
+    note before silence would sustain forever."""
+    window = AudioSpectrumVisualizer()
+    fake_sender = MagicMock()
+    window.midi_enabled = True
+    window.midi_sender = fake_sender
+
+    window._last_spectrum_frame_time = time.monotonic() - 10  # long past the timeout
+    window._check_midi_silence_timeout()
+
+    fake_sender.stop.assert_called_once()
+    assert window._last_spectrum_frame_time is None, "must not keep calling stop() every tick after the first"
+    window.close()
+
+
+def test_midi_silence_timeout_does_nothing_when_midi_disabled():
+    window = AudioSpectrumVisualizer()
+    window._last_spectrum_frame_time = time.monotonic() - 10
+    window._check_midi_silence_timeout()  # must not raise even with midi_sender None
     window.close()
 
 
