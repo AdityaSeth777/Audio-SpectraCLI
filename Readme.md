@@ -129,13 +129,49 @@ other installation method below, it doesn't replace them.
 - **Any OS directly**: `python3 launch.py` (or `python launch.py`).
 
 It detects your OS and Python version, checks whether `numpy`/`scipy`/
-`sounddevice`/`matplotlib`/`PyQt5` are installed and offers to `pip install`
-whichever are missing, lists your real audio input devices (via
+`sounddevice`/`matplotlib`/`PyQt5` are installed. If any are missing, it
+offers to set up a local `.venv` next to the script and install them there
+— it deliberately never tries to `pip install` straight into your system
+Python, since modern Homebrew/python.org Python (and recent Linux distros)
+refuse that with an "externally-managed-environment" error. After that
+one-time setup, it lists your real audio input devices (via
 `sounddevice.query_devices()`) so you can pick one (or just hit Enter for
 the system default), prompts for duration/sampling rate/block size/color
 with sensible defaults on Enter, and then opens the GUI and starts
 visualizing immediately — no extra click needed. Hitting Enter through
-every prompt gets you a running visualizer in a few seconds.
+every prompt gets you a running visualizer in a few seconds. Once `.venv`
+exists, `run.command`/`run.bat` use it directly on every later run, so only
+the first run pays the setup cost.
+
+#### First time on macOS, step by step
+
+1. **Get Python 3**, if you don't already have it: open Terminal and run
+   `python3 --version`. If that fails, install Python from
+   [python.org](https://python.org) (or `brew install python3` if you use
+   Homebrew), then try again.
+2. **Get the repo**: `git clone https://github.com/AdityaSeth777/Audio-SpectraCLI.git`
+   (or download and unzip it from GitHub).
+3. **Double-click `run.command`** in the repo folder.
+   - First time only: macOS may refuse to run it with an "unidentified
+     developer" warning, since it isn't code-signed. Right-click (or
+     Control-click) `run.command` → **Open** → confirm in the dialog. You
+     only need to do this once.
+4. **Terminal opens** and the launcher runs. If packages are missing, it
+   asks: `Set them up now in a local .venv (won't touch your system
+   Python)? [Y/n]` — press Enter or `y`. This downloads and installs
+   `numpy`/`scipy`/`sounddevice`/`matplotlib`/`PyQt5` into a `.venv` folder
+   it creates next to the script (takes a minute or two; only happens
+   once).
+5. **Grant microphone access** when macOS prompts for it (a system dialog
+   asking to let Terminal/Python use the microphone) — click **Allow**. If
+   you miss it or previously denied it, go to **System Settings → Privacy
+   & Security → Microphone** and enable it for Terminal yourself.
+6. **Pick an audio input device** from the list it prints (or just press
+   Enter for the default), then press Enter through the duration/sampling
+   rate/block size/color prompts to accept the defaults.
+7. The **GUI window opens and starts visualizing immediately** — speak or
+   play audio near the selected microphone and you should see the spectrum
+   move.
 
 ---
 

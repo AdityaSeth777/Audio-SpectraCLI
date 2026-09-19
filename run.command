@@ -3,7 +3,11 @@
 set -e
 cd "$(dirname "$0")"
 
-if command -v python3 >/dev/null 2>&1; then
+if [ -x ".venv/bin/python3" ]; then
+    # A previous run already set up a local venv with everything installed —
+    # use it directly and skip the system-Python dependency check entirely.
+    PYTHON=".venv/bin/python3"
+elif command -v python3 >/dev/null 2>&1; then
     PYTHON=python3
 elif command -v python >/dev/null 2>&1; then
     PYTHON=python

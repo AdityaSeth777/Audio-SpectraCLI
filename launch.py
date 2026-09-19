@@ -8,8 +8,13 @@ install, Docker, and the VS Code extension — it doesn't replace any of them.
 
 What it does:
   1. Detects the OS (macOS/Windows/Linux) and Python version.
-  2. Checks the required packages are importable; offers to `pip install`
-     any that are missing.
+  2. Checks the required packages are importable; if any are missing, sets
+     up a local .venv next to this script and installs them there, then
+     re-launches itself under that venv's Python. This sidesteps
+     "externally-managed-environment" pip errors that modern
+     Homebrew/python.org Python (PEP 668) and recent Linux distros raise
+     when you try to pip install into the system Python directly — a very
+     common first-run failure this avoids automatically instead of crashing.
   3. Lists real audio input devices (via sounddevice) and lets you pick one.
   4. Prompts for duration/sampling rate/block size/color — press Enter on
      any prompt to keep the default, so hitting Enter through all of them
@@ -17,9 +22,12 @@ What it does:
   5. Opens the GUI and starts visualizing immediately (no extra click).
 """
 
+import os
 import platform
 import subprocess
 import sys
+import venv
+from pathlib import Path
 
 REQUIRED_PACKAGES = {
     "numpy": "numpy",
@@ -29,24 +37,13 @@ REQUIRED_PACKAGES = {
     "PyQt5": "PyQt5",
 }
 
+REPO_ROOT = Path(__file__).resolve().parent
+VENV_DIR = REPO_ROOT / ".venv"
+
 
 def detect_os_label():
     system = platform.system()  # 'Darwin', 'Windows', 'Linux'
     return {"Darwin": "macOS", "Windows": "Windows", "Linux": "Linux"}.get(system, system)
-
-
-def check_and_install_dependencies():
-    missing = [pip_name for module_name, pip_name in REQUIRED_PACKAGES.items() if not _importable(module_name)]
-    if not missing:
-        return
-
-    print(f"Missing packages: {', '.join(missing)}")
-    answer = input("Install them now with pip? [Y/n] ").strip().lower()
-    if answer in ("", "y", "yes"):
-        subprocess.check_call([sys.executable, "-m", "pip", "install", *missing])
-    else:
-        print("Cannot continue without these packages. Exiting.")
-        sys.exit(1)
 
 
 def _importable(module_name):
@@ -55,6 +52,44 @@ def _importable(module_name):
         return True
     except ImportError:
         return False
+
+
+def _venv_python_path(venv_dir):
+    if platform.system() == "Windows":
+        return venv_dir / "Scripts" / "python.exe"
+    return venv_dir / "bin" / "python3"
+
+
+def ensure_dependencies_or_relaunch_in_venv():
+    """Ensures required packages are importable in the running interpreter.
+
+    If any are missing, offers to set up (or reuse) a local .venv and
+    installs them there — never attempts to pip install into the system
+    Python, since that's exactly what modern "externally-managed-
+    environment" Pythons refuse to do. After installing, re-execs this
+    script under the venv's Python so the rest of the run continues there.
+    """
+    missing = [pip_name for module_name, pip_name in REQUIRED_PACKAGES.items() if not _importable(module_name)]
+    if not missing:
+        return
+
+    print(f"Missing packages: {', '.join(missing)}")
+    answer = input("Set them up now in a local .venv (won't touch your system Python)? [Y/n] ").strip().lower()
+    if answer not in ("", "y", "yes"):
+        print("Cannot continue without these packages. Exiting.")
+        sys.exit(1)
+
+    if not VENV_DIR.exists():
+        print(f"Creating a virtual environment at {VENV_DIR} ...")
+        venv.EnvBuilder(with_pip=True).create(str(VENV_DIR))
+
+    venv_python = _venv_python_path(VENV_DIR)
+    print("Installing missing packages into the virtual environment (this may take a minute)...")
+    subprocess.check_call([str(venv_python), "-m", "pip", "install", "--upgrade", "pip"])
+    subprocess.check_call([str(venv_python), "-m", "pip", "install", *missing])
+
+    print("\nRestarting under the virtual environment...\n")
+    os.execv(str(venv_python), [str(venv_python), str(Path(__file__).resolve()), *sys.argv[1:]])
 
 
 def choose_audio_device():
@@ -112,7 +147,7 @@ def prompt_str(label, default):
 def main():
     print(f"Audio-SpectraCLI launcher — detected {detect_os_label()}, Python {platform.python_version()}\n")
 
-    check_and_install_dependencies()
+    ensure_dependencies_or_relaunch_in_venv()
     device = choose_audio_device()
 
     print()
