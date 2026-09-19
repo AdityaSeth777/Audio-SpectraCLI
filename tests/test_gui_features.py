@@ -15,6 +15,7 @@ import numpy as np
 from PyQt5.QtWidgets import QApplication, QMessageBox
 
 from Audio_SpectraCLI import AudioSpectrumVisualizer, export_manifest, session_history
+from Audio_SpectraCLI import device_profiles as device_profile_store
 from Audio_SpectraCLI.main import SILENCE_STREAK_FOR_WARNING, VIEW_MODES, ExportManagerDialog
 
 _app = QApplication.instance() or QApplication([])
@@ -297,6 +298,40 @@ def test_stopping_visualization_resets_stats(monkeypatch):
     assert window._silence_block_streak == 0
     assert len(window._peak_freq_history) == 0
     assert window.clip_silence_label.text() == ""
+
+    window.close()
+
+
+def test_device_profile_save_and_load_round_trip(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIOSPECTRA_CLI_HOME", str(tmp_path))
+    window = AudioSpectrumVisualizer()
+    window.fs_spinbox.setValue(32000)
+
+    with patch("Audio_SpectraCLI.main.QInputDialog.getText", return_value=("My Setup", True)):
+        window.save_device_profile()
+    assert window.device_profile_combo.currentText() == "My Setup"
+
+    window2 = AudioSpectrumVisualizer()
+    window2.device_profile_combo.setCurrentText("My Setup")
+    window2.load_device_profile()
+    assert window2.fs == 32000
+
+    window.close()
+    window2.close()
+
+
+def test_device_profile_load_with_device_unavailable_warns_but_still_applies_fs(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIOSPECTRA_CLI_HOME", str(tmp_path))
+    window = AudioSpectrumVisualizer()
+    directory = device_profile_store.get_profiles_dir()
+    device_profile_store.save_profile(directory, "Ghost Device", "A Device That Is Not Plugged In", 32000, "left")
+    window._refresh_device_profile_combo()
+
+    window.device_profile_combo.setCurrentText("Ghost Device")
+    with patch("Audio_SpectraCLI.main.QMessageBox.information") as mock_info:
+        window.load_device_profile()
+        mock_info.assert_called_once()
+    assert window.fs == 32000
 
     window.close()
 

@@ -38,6 +38,7 @@ from PyQt5.QtWidgets import (
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
+from . import device_profiles as device_profile_store
 from . import export_manifest
 from . import presets as preset_store
 from . import session_history
@@ -474,6 +475,129 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.device_combo.currentIndexChanged.connect(self.set_device_by_combo_index)
         row.addWidget(self.device_combo, stretch=1)
         self.layout.addLayout(row)
+
+        self._add_device_profile_row()
+
+    def _add_device_profile_row(self):
+        """Named device profiles (device name + fs + channel mode), for
+        quickly switching between e.g. "laptop mic" and "USB interface"
+        setups - see device_profiles.py's docstring for why this matches
+        by device NAME rather than sounddevice's numeric index.
+        """
+        row = QHBoxLayout()
+
+        self.device_profile_combo = QComboBox()
+        self._refresh_device_profile_combo()
+
+        save_button = QPushButton('Save Device Profile As...')
+        save_button.clicked.connect(self.save_device_profile)
+
+        load_button = QPushButton('Load')
+        load_button.clicked.connect(self.load_device_profile)
+
+        delete_button = QPushButton('Delete')
+        delete_button.clicked.connect(self.delete_device_profile)
+
+        row.addWidget(QLabel('Device Profiles:'))
+        row.addWidget(self.device_profile_combo, stretch=1)
+        row.addWidget(save_button)
+        row.addWidget(load_button)
+        row.addWidget(delete_button)
+        self.layout.addLayout(row)
+
+    def _refresh_device_profile_combo(self, select=None):
+        self.device_profile_combo.blockSignals(True)
+        self.device_profile_combo.clear()
+        try:
+            names = device_profile_store.list_profiles()
+        except OSError as exc:
+            QMessageBox.warning(self, 'Device profiles unavailable', f'Could not read the device profiles directory: {exc}')
+            names = []
+        self.device_profile_combo.addItems(names)
+        if select is not None:
+            index = self.device_profile_combo.findText(select)
+            if index >= 0:
+                self.device_profile_combo.setCurrentIndex(index)
+        self.device_profile_combo.blockSignals(False)
+
+    def _current_device_display_name(self):
+        """The current device's display name, stripped of the "[i] "
+        index prefix and " (default)" suffix _add_device_row adds - so
+        it's just the raw device name, comparable to what's plugged into
+        a *different* machine later.
+        """
+        text = self.device_combo.currentText()
+        text = text.split('] ', 1)[-1] if text.startswith('[') else text
+        return text.removesuffix(' (default)')
+
+    def save_device_profile(self):
+        name, ok = QInputDialog.getText(self, 'Save Device Profile As', 'Profile name:')
+        if not ok or not name.strip():
+            return
+        try:
+            device_profile_store.save_profile(
+                None, name.strip(), self._current_device_display_name(), self.fs, self.channel_mode,
+            )
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, 'Save failed', f'Could not save device profile: {exc}')
+            return
+        self._refresh_device_profile_combo(select=name.strip())
+
+    def load_device_profile(self):
+        name = self.device_profile_combo.currentText()
+        if not name:
+            return
+        try:
+            profile = device_profile_store.load_profile(None, name)
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, 'Load failed', f'Could not load device profile: {exc}')
+            return
+
+        target_device_name = profile.get('device_name')
+        matched = False
+        if target_device_name:
+            for combo_index in range(self.device_combo.count()):
+                if self._device_display_name_at(combo_index) == target_device_name:
+                    self.device_combo.setCurrentIndex(combo_index)
+                    matched = True
+                    break
+
+        settings = {}
+        if 'fs' in profile:
+            settings['fs'] = profile['fs']
+        if 'channel_mode' in profile:
+            settings['channel_mode'] = profile['channel_mode']
+        if settings:
+            self.apply_settings_dict(settings)
+
+        if not matched and target_device_name:
+            QMessageBox.information(
+                self, 'Device not found',
+                f"'{target_device_name}' isn't currently available - applied the saved sample rate/channel "
+                "mode, but the input device selection was left unchanged.",
+            )
+
+    def _device_display_name_at(self, combo_index):
+        text = self.device_combo.itemText(combo_index)
+        text = text.split('] ', 1)[-1] if text.startswith('[') else text
+        return text.removesuffix(' (default)')
+
+    def delete_device_profile(self):
+        name = self.device_profile_combo.currentText()
+        if not name:
+            return
+        confirm = QMessageBox.question(
+            self, 'Delete Device Profile', f"Delete device profile '{name}'? This can't be undone.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+        try:
+            device_profile_store.delete_profile(None, name)
+        except OSError as exc:
+            QMessageBox.warning(self, 'Delete failed', f'Could not delete device profile: {exc}')
+            return
+        self._refresh_device_profile_combo()
 
     def _add_export_row(self):
         row = QHBoxLayout()
