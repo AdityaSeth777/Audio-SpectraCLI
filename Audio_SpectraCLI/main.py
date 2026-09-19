@@ -5,22 +5,25 @@
 
 import csv
 import json
+import os
 import time
 from collections import deque
 
 import numpy as np
 import sounddevice as sd
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor, QKeySequence
+from PyQt5.QtCore import QUrl, Qt, QTimer
+from PyQt5.QtGui import QColor, QDesktopServices, QKeySequence
 from PyQt5.QtWidgets import (
     QCheckBox,
     QColorDialog,
     QComboBox,
+    QDialog,
     QDoubleSpinBox,
     QFileDialog,
     QHBoxLayout,
     QInputDialog,
     QLabel,
+    QListWidget,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -35,6 +38,7 @@ from PyQt5.QtWidgets import (
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
+from . import export_manifest
 from . import presets as preset_store
 from . import session_history
 from .analysis import (
@@ -83,6 +87,73 @@ CHANNEL_MODE_LABELS = {
 }
 
 VIEW_MODES = ["Line", "Bars", "Waterfall", "Circular", "Tuner"]
+
+
+class ExportManagerDialog(QDialog):
+    """Lists past PNG/CSV/WAV exports (export_manifest.py), with per-item
+    "Open Containing Folder" and "Delete" actions - so a saved file isn't
+    only reachable by remembering the arbitrary path it was saved to.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('Recent Exports')
+        self.resize(500, 300)
+
+        layout = QVBoxLayout(self)
+        self.list_widget = QListWidget()
+        layout.addWidget(self.list_widget)
+
+        button_row = QHBoxLayout()
+        open_button = QPushButton('Open Containing Folder')
+        open_button.clicked.connect(self._open_selected_folder)
+        delete_button = QPushButton('Delete')
+        delete_button.clicked.connect(self._delete_selected)
+        close_button = QPushButton('Close')
+        close_button.clicked.connect(self.close)
+        button_row.addWidget(open_button)
+        button_row.addWidget(delete_button)
+        button_row.addStretch(1)
+        button_row.addWidget(close_button)
+        layout.addLayout(button_row)
+
+        self._reload()
+
+    def _reload(self):
+        self.list_widget.clear()
+        for record in export_manifest.list_exports():
+            when = time.strftime('%Y-%m-%d %H:%M', time.localtime(record.get('exported_at', 0)))
+            label = f"[{record.get('type', '?').upper()}] {when} - {record.get('path', '')}"
+            self.list_widget.addItem(label)
+        # Keeps list rows aligned 1:1 with export_manifest.list_exports()'s
+        # order so _delete_selected's index lookup below stays valid.
+        self._records = export_manifest.list_exports()
+
+    def _selected_record(self):
+        row = self.list_widget.currentRow()
+        if row < 0 or row >= len(self._records):
+            return None
+        return self._records[row]
+
+    def _open_selected_folder(self):
+        record = self._selected_record()
+        if record is None:
+            return
+        folder = os.path.dirname(record.get('path', '')) or '.'
+        QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
+
+    def _delete_selected(self):
+        record = self._selected_record()
+        if record is None:
+            return
+        confirm = QMessageBox.question(
+            self, 'Delete Export', f"Delete this file from disk?\n\n{record.get('path', '')}",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+        export_manifest.delete_export(record.get('path', ''))
+        self._reload()
 
 
 class AudioSpectrumVisualizer(QMainWindow):
@@ -419,11 +490,18 @@ class AudioSpectrumVisualizer(QMainWindow):
         history_button = QPushButton('Session History')
         history_button.clicked.connect(self.show_session_history)
 
+        exports_button = QPushButton('Recent Exports')
+        exports_button.clicked.connect(self.show_export_manager)
+
         row.addWidget(export_png_button)
         row.addWidget(export_csv_button)
         row.addWidget(self.record_button)
         row.addWidget(history_button)
+        row.addWidget(exports_button)
         self.layout.addLayout(row)
+
+    def show_export_manager(self):
+        ExportManagerDialog(self).exec_()
 
     def show_session_history(self):
         sessions = session_history.list_sessions()
@@ -896,6 +974,7 @@ class AudioSpectrumVisualizer(QMainWindow):
             return
         try:
             self.canvas.figure.savefig(path)
+            export_manifest.record_export('png', path)
         except Exception as exc:
             # File I/O (permission denied, disk full, bad path, ...) run
             # directly inside a button-click Qt slot must not be allowed to
@@ -915,6 +994,7 @@ class AudioSpectrumVisualizer(QMainWindow):
                 writer = csv.writer(f)
                 writer.writerow(['frequency_hz', 'magnitude'])
                 writer.writerows(zip(freq_bins.tolist(), spectrum.tolist()))
+            export_manifest.record_export('csv', path)
         except Exception as exc:
             QMessageBox.warning(self, 'Export failed', f'Could not save CSV: {exc}')
 
@@ -948,6 +1028,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         if path:
             try:
                 self._write_wav(path, samples, self.fs)
+                export_manifest.record_export('wav', path)
             except Exception as exc:
                 QMessageBox.warning(self, 'Save failed', f'Could not save recording: {exc}')
 

@@ -14,8 +14,8 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QMessageBox
 
-from Audio_SpectraCLI import AudioSpectrumVisualizer, session_history
-from Audio_SpectraCLI.main import SILENCE_STREAK_FOR_WARNING, VIEW_MODES
+from Audio_SpectraCLI import AudioSpectrumVisualizer, export_manifest, session_history
+from Audio_SpectraCLI.main import SILENCE_STREAK_FOR_WARNING, VIEW_MODES, ExportManagerDialog
 
 _app = QApplication.instance() or QApplication([])
 
@@ -298,6 +298,40 @@ def test_stopping_visualization_resets_stats(monkeypatch):
     assert len(window._peak_freq_history) == 0
     assert window.clip_silence_label.text() == ""
 
+    window.close()
+
+
+def test_export_png_records_to_manifest(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIOSPECTRA_CLI_HOME", str(tmp_path))
+    window = AudioSpectrumVisualizer()
+    png_path = tmp_path / "spectrum.png"
+
+    with patch("Audio_SpectraCLI.main.QFileDialog.getSaveFileName", return_value=(str(png_path), "")):
+        window.export_png()
+
+    exports = export_manifest.list_exports()
+    assert len(exports) == 1
+    assert exports[0]["type"] == "png"
+    assert exports[0]["path"] == str(png_path)
+    window.close()
+
+
+def test_export_manager_dialog_lists_and_deletes(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIOSPECTRA_CLI_HOME", str(tmp_path))
+    csv_path = tmp_path / "spectrum.csv"
+    csv_path.write_text("frequency_hz,magnitude\n")
+    export_manifest.record_export("csv", str(csv_path))
+
+    window = AudioSpectrumVisualizer()
+    dialog = ExportManagerDialog(window)
+    assert dialog.list_widget.count() == 1
+
+    dialog.list_widget.setCurrentRow(0)
+    with patch("Audio_SpectraCLI.main.QMessageBox.question", return_value=QMessageBox.Yes):
+        dialog._delete_selected()
+
+    assert dialog.list_widget.count() == 0
+    assert not csv_path.exists()
     window.close()
 
 
