@@ -14,7 +14,9 @@
   },
   "activationEvents": [
     "onCommand:extension.addSpectraCode",
-    "onCommand:extension.viewSpectraCLIStatus"
+    "onCommand:extension.viewSpectraCLIStatus",
+    "onCommand:extension.startLiveVisualization",
+    "onCommand:extension.stopLiveVisualization"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -26,8 +28,41 @@
       {
         "command": "extension.viewSpectraCLIStatus",
         "title": "View Audio-SpectraCLI Status"
+      },
+      {
+        "command": "extension.startLiveVisualization",
+        "title": "Audio-SpectraCLI: Start Live Visualization"
+      },
+      {
+        "command": "extension.stopLiveVisualization",
+        "title": "Audio-SpectraCLI: Stop Live Visualization"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Audio-SpectraCLI",
+      "properties": {
+        "audioSpectraCli.pythonPath": {
+          "type": "string",
+          "default": "python3",
+          "description": "Path to the Python executable used to run the headless Audio-SpectraCLI streamer (must have Audio_SpectraCLI installed)."
+        },
+        "audioSpectraCli.sampleRate": {
+          "type": "number",
+          "default": 44100,
+          "description": "Sampling rate (Hz) for the live visualizer."
+        },
+        "audioSpectraCli.blockSize": {
+          "type": "number",
+          "default": 4096,
+          "description": "FFT block size for the live visualizer."
+        },
+        "audioSpectraCli.bars": {
+          "type": "number",
+          "default": 64,
+          "description": "Number of bars to render in the live visualizer."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
@@ -35,17 +70,14 @@
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
+    "test:unit": "node --test dist/lineParser.test.js",
     "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.9",
     "@types/node": "^22.7.9",
     "@types/vscode": "^1.70.0",
-    "typescript": "^4.0.0"
-  },
-  "dependencies": {
     "@vscode/vsce": "^3.2.1",
-    "punycode": "^2.3.1",
-    "vsce": "^2.15.0"
+    "typescript": "^4.0.0"
   }
 }

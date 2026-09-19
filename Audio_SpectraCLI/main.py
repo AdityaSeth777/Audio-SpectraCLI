@@ -3,19 +3,19 @@
 # It is responsible for creating the AudioSpectrumVisualizer class which is used
 # to visualize the audio spectrum in real-time.
 
-import numpy as np
-import matplotlib.pyplot as plt
-import sounddevice as sd
-import queue
-import threading
-from scipy.ndimage import gaussian_filter1d
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QSlider
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtWidgets import QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QSlider
+from PyQt5.QtCore import Qt, pyqtSignal
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
+from .engine import AudioSpectrumEngine
+
 
 class AudioSpectrumVisualizer(QMainWindow):
+    # Emitted from the engine's background thread; Qt automatically queues
+    # the connected slot onto this widget's own (GUI) thread.
+    spectrumReady = pyqtSignal(object, object, float)
+
     def __init__(self, duration=10, fs=44100, block_size=4096, frequency_range=(20, 20000), color='blue'):
         super().__init__()
         self.setWindowTitle('Audio Spectrum Visualizer')
@@ -27,12 +27,8 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.frequency_range = frequency_range  # Frequency range
         self.color = color  # Color
 
-        self.audio_queue = queue.Queue()
-        self.spectrum = np.zeros(self.block_size)
-
-        self.noise_threshold = 0.05  # Adjusted for lower noise level
-        self.running = False
-        self.stream = None
+        self.engine = None
+        self.spectrumReady.connect(self.update_plot)
 
         self.setup_ui()
 
@@ -82,26 +78,7 @@ class AudioSpectrumVisualizer(QMainWindow):
 
         self.central_widget.setLayout(self.layout)
 
-    def audio_callback(self, indata, frames, time, status):
-        if status:
-            print(status)
-        self.audio_queue.put(indata.copy())
-
-    def process_audio(self):
-        while self.running:
-            if not self.audio_queue.empty():
-                audio_block = self.audio_queue.get()
-                spectrum = np.abs(np.fft.rfft(
-                    audio_block[:, 0], n=self.block_size))
-                spectrum = gaussian_filter1d(
-                    spectrum, sigma=2)  # Apply smoothing filter
-                max_magnitude = np.max(spectrum)
-                print(f'Max magnitude: {max_magnitude}')  # Debugging print
-                if max_magnitude > self.noise_threshold:
-                    self.update_plot(spectrum, max_magnitude)
-
-    def update_plot(self, spectrum, max_magnitude):
-        freq_bins = np.fft.rfftfreq(self.block_size, 1 / self.fs)
+    def update_plot(self, freq_bins, spectrum, max_magnitude):
         self.ax.clear()
         self.ax.plot(freq_bins, spectrum, color=self.color)
         self.ax.set_xlim(self.frequency_range)
@@ -121,28 +98,23 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.block_size = value
 
     def toggle_visualization(self):
-        if self.running:
-            self.running = False
-            if self.stream is not None:
-                self.stream.stop()
-                self.stream.close()
+        if self.engine is not None:
+            self.engine.stop()
+            self.engine = None
             self.start_button.setText('Start Visualization')
         else:
-            self.running = True
-            sd.default.samplerate = self.fs
-            sd.default.channels = 1
-            self.stream = sd.InputStream(callback=self.audio_callback)
-            self.stream.start()
-            audio_thread = threading.Thread(
-                target=self.process_audio, daemon=True)
-            audio_thread.start()
+            self.engine = AudioSpectrumEngine(
+                on_spectrum=self.spectrumReady.emit,
+                fs=self.fs,
+                block_size=self.block_size,
+            )
+            self.engine.start()
             self.start_button.setText('Stop Visualization')
 
     def closeEvent(self, event):
-        self.running = False
-        if self.stream is not None:
-            self.stream.stop()
-            self.stream.close()
+        if self.engine is not None:
+            self.engine.stop()
+            self.engine = None
         event.accept()
 
 
