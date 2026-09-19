@@ -86,13 +86,16 @@
   dropdown before clicking Start; changing it while running is disabled,
   the same way sampling rate/block size are, since a live stream can't be
   reconfigured without reopening it.
-- **Optional MIDI-out**: converts the dominant frequency to a MIDI note and
-  sends it to a virtual MIDI port, turning the visualizer into a simple
-  audio-to-MIDI tool. Needs `pip install Audio-SpectraCLI[midi]` (or
-  `pip install mido python-rtmidi` directly) — the checkbox detects if
-  that's missing and disables itself with an explanation instead of
-  crashing. Windows has no native virtual MIDI port support without a
-  third-party loopback driver like loopMIDI; the same message covers that.
+- **MIDI-out**: converts the dominant frequency to a MIDI note and sends it
+  to a virtual MIDI port, turning the visualizer into a simple audio-to-MIDI
+  tool. `mido`/`python-rtmidi` are core dependencies (installed
+  automatically by `requirements.txt`/`pip install Audio-SpectraCLI`/the
+  interactive launcher's `.venv` setup) — but the checkbox still degrades
+  gracefully with a clear explanation instead of crashing if they're somehow
+  missing or fail to build in a given environment. Windows has no native
+  virtual MIDI port support without a third-party loopback driver like
+  loopMIDI; the same message covers that case too. A stuck note is released
+  automatically both when input goes quiet for 0.5s and when you click Stop.
 
 ## Packaging
 

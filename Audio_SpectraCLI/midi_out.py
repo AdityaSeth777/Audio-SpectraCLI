@@ -1,10 +1,12 @@
 # Aditya Seth
-# Description: Optional MIDI-out support — converts a dominant frequency
-# into a MIDI note and sends it to a virtual MIDI port. Kept in its own
-# module so main.py can import it without hard-requiring python-rtmidi,
-# which isn't in the core dependency list (it's a C-extension package that
-# some environments may not build, and Windows has no native virtual MIDI
-# port support at all without a third-party loopback driver like loopMIDI).
+# Description: MIDI-out support — converts a dominant frequency into a MIDI
+# note and sends it to a virtual MIDI port. mido/python-rtmidi are core
+# dependencies (see requirements.txt/setup.py), but this module still
+# degrades gracefully (RTMIDI_AVAILABLE/MidiUnavailableError) rather than
+# hard-crashing on import, since python-rtmidi is a C-extension package that
+# could still fail to build in some environment, and Windows has no native
+# virtual MIDI port support at all without a third-party loopback driver
+# like loopMIDI.
 
 try:
     import rtmidi

@@ -36,6 +36,8 @@ REQUIRED_PACKAGES = {
     "sounddevice": "sounddevice",
     "matplotlib": "matplotlib",
     "PyQt5": "PyQt5",
+    "mido": "mido",
+    "rtmidi": "python-rtmidi",  # import name is `rtmidi`, pip package name is `python-rtmidi`
 }
 
 REPO_ROOT = Path(__file__).resolve().parent
