@@ -33,10 +33,15 @@ class MidiNoteSender:
                 "python-rtmidi isn't installed. Install it with: pip install python-rtmidi mido"
             )
 
-        self._midiout = rtmidi.MidiOut()
+        # Wraps both MidiOut() construction and open_virtual_port() — not
+        # just the latter — since either can raise on a given system (e.g.
+        # no MIDI subsystem/driver at all), and any exception type here
+        # should surface as a clear MidiUnavailableError, not an arbitrary
+        # exception escaping into the GUI's checkbox-toggle slot.
         try:
+            self._midiout = rtmidi.MidiOut()
             self._midiout.open_virtual_port(port_name)
-        except (NotImplementedError, RuntimeError) as exc:
+        except Exception as exc:
             raise MidiUnavailableError(
                 "Couldn't open a virtual MIDI port (Windows has no native virtual MIDI port support — "
                 "install a loopback driver like loopMIDI, then pick a real output port instead)."

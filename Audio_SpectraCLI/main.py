@@ -442,13 +442,18 @@ class AudioSpectrumVisualizer(QMainWindow):
         elif self.view_mode == "tuner":
             self._render_tuner(visible_freqs, visible_values)
         else:
-            self._render_line_or_bars(freq_bins, display_spectrum, visible_max)
+            self._render_line_or_bars(freq_bins, display_spectrum, visible_freqs, visible_values)
 
         y_floor = -100 if self.db_scale else 0
         self.ax.set_title('Audio Spectrum Visualization')
         if self.view_mode in ("line", "bars"):
             self.ax.set_xlim(self.frequency_range)
-            self.ax.set_ylim(y_floor, max(visible_max * 1.2, y_floor + 0.01))
+            # dB values are typically negative (e.g. -10), so "*1.2 for
+            # headroom" makes them MORE negative — a ceiling BELOW the
+            # actual peak, clipping it off the top of the plot. Linear
+            # magnitudes are always >= 0, where *1.2 headroom is correct.
+            y_ceiling = visible_max + 5 if self.db_scale else max(visible_max * 1.2, 0.01)
+            self.ax.set_ylim(y_floor, max(y_ceiling, y_floor + 0.01))
             self.ax.set_xlabel('Frequency (Hz)')
             self.ax.set_ylabel('Magnitude (dB)' if self.db_scale else 'Magnitude')
         elif self.view_mode == "waterfall":
@@ -463,10 +468,16 @@ class AudioSpectrumVisualizer(QMainWindow):
 
         self.canvas.draw()
 
-    def _render_line_or_bars(self, freq_bins, display_spectrum, visible_max):
+    def _render_line_or_bars(self, freq_bins, display_spectrum, visible_freqs, visible_values):
         if self.view_mode == "bars":
-            bar_freqs = downsample_max_pool(freq_bins, BARS_COUNT)
-            bar_values = downsample_max_pool(display_spectrum, BARS_COUNT)
+            # Downsample the VISIBLE (masked-to-frequency-range) bins, not
+            # the full spectrum — using the full spectrum here made bar
+            # spacing correspond to the whole 0..Nyquist range while `width`
+            # was sized for the (usually much narrower) selected frequency
+            # range, so bars rendered as thin slivers with large gaps
+            # whenever the visible range was narrower than the full FFT range.
+            bar_freqs = downsample_max_pool(visible_freqs, BARS_COUNT)
+            bar_values = downsample_max_pool(visible_values, BARS_COUNT)
             width = (self.frequency_range[1] - self.frequency_range[0]) / BARS_COUNT
             self.ax.bar(bar_freqs, bar_values, width=width, color=self.color)
         else:
@@ -476,7 +487,21 @@ class AudioSpectrumVisualizer(QMainWindow):
             self.ax.plot(freq_bins, self.peak_hold_values, color='red', linestyle='--', linewidth=1)
 
     def _render_waterfall(self, visible_freqs, visible_values):
-        row = downsample_max_pool(visible_values, WATERFALL_WIDTH)
+        if visible_values.size < 2:
+            return  # not enough bins this frame to build a meaningful row
+
+        # Resampled via interpolation to EXACTLY WATERFALL_WIDTH points,
+        # regardless of how many bins are visible right now. That count
+        # varies with the (live-changeable) frequency range, and
+        # downsample_max_pool only shrinks — it returns its input unchanged
+        # when already short, which let rows of different lengths land in
+        # the same history and make np.array(...)/imshow blow up on a
+        # ragged array (and permanently corrupt the history, since the
+        # mismatched row had already been appended before the crash).
+        x_original = np.linspace(0, 1, visible_values.size)
+        x_target = np.linspace(0, 1, WATERFALL_WIDTH)
+        row = np.interp(x_target, x_original, visible_values)
+
         self.waterfall_history.append(row)
         self.waterfall_history = self.waterfall_history[-WATERFALL_HISTORY_ROWS:]
 
@@ -610,6 +635,7 @@ class AudioSpectrumVisualizer(QMainWindow):
     def set_db_scale(self, enabled):
         self.db_scale = enabled
         self.peak_hold_values = None  # stale values were on the other scale
+        self.waterfall_history = []  # stale rows would mix dB and linear values in one imshow
 
     def set_view_mode(self, label):
         self.view_mode = label.lower()
@@ -640,6 +666,14 @@ class AudioSpectrumVisualizer(QMainWindow):
             except MidiUnavailableError as exc:
                 self.midi_checkbox.setChecked(False)
                 QMessageBox.warning(self, 'MIDI unavailable', str(exc))
+            except Exception as exc:
+                # Defense in depth: midi_out.py already converts its own
+                # failures to MidiUnavailableError, but a checkbox-toggle
+                # slot is exactly the kind of place an unhandled exception
+                # can abort the whole process on some PyQt5/sip builds — an
+                # unexpected error here must still fail safely, not crash.
+                self.midi_checkbox.setChecked(False)
+                QMessageBox.warning(self, 'MIDI unavailable', f'Unexpected error enabling MIDI: {exc}')
         else:
             self.midi_enabled = False
             if self.midi_sender is not None:
@@ -682,17 +716,29 @@ class AudioSpectrumVisualizer(QMainWindow):
             return
 
         if self.engine.recording:
-            samples = self.engine.stop_recording()
-            self.record_button.setText('Start Recording (WAV)')
-            if samples.size == 0:
-                QMessageBox.information(self, 'Nothing recorded', 'No audio was captured.')
-                return
-            path, _ = QFileDialog.getSaveFileName(self, 'Save recording', 'recording.wav', 'WAV Files (*.wav)')
-            if path:
-                self._write_wav(path, samples, self.fs)
+            self._finish_recording()
         else:
             self.engine.start_recording()
             self.record_button.setText('Stop Recording (WAV)')
+
+    def _finish_recording(self):
+        """Stops recording (if active) and offers to save it. Safe to call
+        whether or not a recording is actually in progress, and used both by
+        the Record button and by toggle_visualization's stop path — clicking
+        "Stop Visualization" while recording used to silently discard the
+        buffered audio and leave the Record button reading "Stop Recording"
+        with no engine behind it."""
+        if self.engine is None or not self.engine.recording:
+            return
+
+        samples = self.engine.stop_recording()
+        self.record_button.setText('Start Recording (WAV)')
+        if samples.size == 0:
+            QMessageBox.information(self, 'Nothing recorded', 'No audio was captured.')
+            return
+        path, _ = QFileDialog.getSaveFileName(self, 'Save recording', 'recording.wav', 'WAV Files (*.wav)')
+        if path:
+            self._write_wav(path, samples, self.fs)
 
     @staticmethod
     def _write_wav(path, samples, sample_rate):
@@ -748,8 +794,24 @@ class AudioSpectrumVisualizer(QMainWindow):
             self.block_size_spinbox.setValue(settings['block_size'])
         if 'frequency_range' in settings:
             fmin, fmax = settings['frequency_range']
-            self.freq_max_spinbox.setValue(fmax)
-            self.freq_min_spinbox.setValue(fmin)
+            # set_frequency_min/max each validate against the CURRENT
+            # self.frequency_range, not the other new value — so setting
+            # either spinbox first can get silently rejected if the
+            # currently-loaded range doesn't overlap the new one (e.g.
+            # current is (15000, 20000), preset wants (0, 2500): setting
+            # max=2500 first is rejected since 2500 <= current min 15000).
+            # Setting self.frequency_range directly sidesteps that
+            # ordering hazard entirely; the spinboxes are then just updated
+            # to reflect it, with signals blocked so that update can't
+            # itself trigger the same validation again.
+            if fmin < fmax:
+                self.frequency_range = (fmin, fmax)
+                self.freq_min_spinbox.blockSignals(True)
+                self.freq_max_spinbox.blockSignals(True)
+                self.freq_min_spinbox.setValue(fmin)
+                self.freq_max_spinbox.setValue(fmax)
+                self.freq_min_spinbox.blockSignals(False)
+                self.freq_max_spinbox.blockSignals(False)
         if 'color' in settings:
             self.color = settings['color']
             self._update_color_button_swatch()
@@ -776,6 +838,7 @@ class AudioSpectrumVisualizer(QMainWindow):
 
     def toggle_visualization(self):
         if self.engine is not None:
+            self._finish_recording()  # otherwise stopping mid-recording silently discards it
             self.engine.stop()
             self.engine = None
             self._latest_frame = None
@@ -811,3 +874,21 @@ class AudioSpectrumVisualizer(QMainWindow):
 
 
 __all__ = ['AudioSpectrumVisualizer']
+
+
+def main():
+    """Entry point for `python -m Audio_SpectraCLI.main` (e.g. the Dockerfile's
+    default CMD) — previously missing, so that command silently imported and
+    exited without ever showing a window."""
+    import sys
+
+    from PyQt5.QtWidgets import QApplication
+
+    app = QApplication(sys.argv)
+    window = AudioSpectrumVisualizer()
+    window.show()
+    sys.exit(app.exec_())
+
+
+if __name__ == '__main__':
+    main()
