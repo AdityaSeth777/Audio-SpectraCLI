@@ -5,6 +5,7 @@ threshold/window-type controls.
 
 import json
 import os
+import time
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -13,7 +14,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QMessageBox
 
-from Audio_SpectraCLI import AudioSpectrumVisualizer
+from Audio_SpectraCLI import AudioSpectrumVisualizer, session_history
 from Audio_SpectraCLI.main import SILENCE_STREAK_FOR_WARNING, VIEW_MODES
 
 _app = QApplication.instance() or QApplication([])
@@ -297,6 +298,59 @@ def test_stopping_visualization_resets_stats(monkeypatch):
     assert len(window._peak_freq_history) == 0
     assert window.clip_silence_label.text() == ""
 
+    window.close()
+
+
+def test_ab_compare_store_and_recall():
+    window = AudioSpectrumVisualizer()
+
+    window.fs_spinbox.setValue(32000)
+    window.store_ab_slot('A')
+    window.fs_spinbox.setValue(44100)
+    window.store_ab_slot('B')
+
+    window.recall_ab_slot('A')
+    assert window.fs == 32000
+    window.recall_ab_slot('B')
+    assert window.fs == 44100
+
+    window.close()
+
+
+def test_ab_compare_recall_empty_slot_warns_without_raising():
+    window = AudioSpectrumVisualizer()
+    with patch("Audio_SpectraCLI.main.QMessageBox.information") as mock_info:
+        window.recall_ab_slot('A')
+        mock_info.assert_called_once()
+    window.close()
+
+
+def test_session_history_logged_on_stop(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIOSPECTRA_CLI_HOME", str(tmp_path))
+    window = AudioSpectrumVisualizer()
+
+    fake_engine = MagicMock()
+    fake_engine.recording = False
+    window.engine = fake_engine
+    window._session_start_time = time.monotonic() - 5
+    window.bpm_estimate = 128.0
+
+    window.toggle_visualization()  # stop branch
+
+    sessions = session_history.list_sessions()
+    assert len(sessions) == 1
+    assert sessions[0]["avg_bpm"] == 128.0
+    assert window._session_start_time is None
+
+    window.close()
+
+
+def test_show_session_history_with_no_sessions_informs_user(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIOSPECTRA_CLI_HOME", str(tmp_path))
+    window = AudioSpectrumVisualizer()
+    with patch("Audio_SpectraCLI.main.QMessageBox.information") as mock_info:
+        window.show_session_history()
+        mock_info.assert_called_once()
     window.close()
 
 

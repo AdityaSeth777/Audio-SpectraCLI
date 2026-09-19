@@ -36,6 +36,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 from . import presets as preset_store
+from . import session_history
 from .analysis import (
     BeatDetector,
     compute_rms,
@@ -128,6 +129,10 @@ class AudioSpectrumVisualizer(QMainWindow):
         self._silence_block_streak = 0
         self._peak_freq_history = deque(maxlen=PEAK_FREQ_HISTORY_LEN)
 
+        # A/B compare: in-memory only (not written to disk), deliberately
+        # simpler than the named-preset manager above for quick A/B tuning.
+        self._ab_slots = {}
+
         self.engine = None
         # The engine's background thread calls _on_engine_spectrum for every
         # qualifying audio block (potentially dozens per second with real
@@ -138,6 +143,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         # QTimer on the GUI thread picks it up. Plain attribute assignment
         # is atomic under the GIL, so no lock is needed here.
         self._latest_frame = None
+        self._session_start_time = None
 
         self.render_timer = QTimer(self)
         self.render_timer.setInterval(RENDER_INTERVAL_MS)
@@ -215,6 +221,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         self._add_export_row()
         self._add_preset_row()
         self._add_named_preset_row()
+        self._add_ab_compare_row()
         self._add_midi_checkbox()
 
         self.start_button = QPushButton('Start Visualization')
@@ -409,10 +416,38 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.record_button = QPushButton('Start Recording (WAV)')
         self.record_button.clicked.connect(self.toggle_recording)
 
+        history_button = QPushButton('Session History')
+        history_button.clicked.connect(self.show_session_history)
+
         row.addWidget(export_png_button)
         row.addWidget(export_csv_button)
         row.addWidget(self.record_button)
+        row.addWidget(history_button)
         self.layout.addLayout(row)
+
+    def show_session_history(self):
+        sessions = session_history.list_sessions()
+        if not sessions:
+            QMessageBox.information(self, 'Session History', 'No past sessions recorded yet.')
+            return
+
+        lines = []
+        for record in sessions:
+            ended_at = time.strftime('%Y-%m-%d %H:%M', time.localtime(record.get('ended_at', 0)))
+            duration = record.get('duration_seconds', 0)
+            device = record.get('device_name') or 'unknown device'
+            bpm = record.get('avg_bpm')
+            bpm_text = f", ~{bpm:.0f} BPM" if bpm else ""
+            lines.append(f"{ended_at} - {duration:.0f}s on {device}{bpm_text}")
+
+        box = QMessageBox(self)
+        box.setWindowTitle('Session History')
+        box.setText('\n'.join(lines))
+        clear_button = box.addButton('Clear History', QMessageBox.DestructiveRole)
+        box.addButton(QMessageBox.Ok)
+        box.exec_()
+        if box.clickedButton() is clear_button:
+            session_history.clear_history()
 
     def _add_preset_row(self):
         row = QHBoxLayout()
@@ -456,6 +491,41 @@ class AudioSpectrumVisualizer(QMainWindow):
         row.addWidget(rename_button)
         row.addWidget(delete_button)
         self.layout.addLayout(row)
+
+    def _add_ab_compare_row(self):
+        """A/B settings compare: two in-memory (not persisted-to-disk)
+        slots to flip between while tuning, without the overhead of
+        naming/saving/loading a named preset for a quick comparison.
+        """
+        row = QHBoxLayout()
+
+        store_a_button = QPushButton('Store A')
+        store_a_button.clicked.connect(lambda: self.store_ab_slot('A'))
+        recall_a_button = QPushButton('Recall A')
+        recall_a_button.clicked.connect(lambda: self.recall_ab_slot('A'))
+
+        store_b_button = QPushButton('Store B')
+        store_b_button.clicked.connect(lambda: self.store_ab_slot('B'))
+        recall_b_button = QPushButton('Recall B')
+        recall_b_button.clicked.connect(lambda: self.recall_ab_slot('B'))
+
+        row.addWidget(QLabel('A/B Compare:'))
+        row.addWidget(store_a_button)
+        row.addWidget(recall_a_button)
+        row.addWidget(store_b_button)
+        row.addWidget(recall_b_button)
+        row.addStretch(1)
+        self.layout.addLayout(row)
+
+    def store_ab_slot(self, slot):
+        self._ab_slots[slot] = self._current_settings_dict()
+
+    def recall_ab_slot(self, slot):
+        settings = self._ab_slots.get(slot)
+        if settings is None:
+            QMessageBox.information(self, 'Nothing stored', f"Slot {slot} hasn't been stored yet.")
+            return
+        self.apply_settings_dict(settings)
 
     def _add_midi_checkbox(self):
         self.midi_checkbox = QCheckBox('Send dominant frequency as MIDI (virtual port)')
@@ -1054,9 +1124,25 @@ class AudioSpectrumVisualizer(QMainWindow):
 
     # ---- lifecycle -------------------------------------------------------
 
+    def _log_session_end(self):
+        """Appends a session-history record if a session was actually
+        running (self._session_start_time is set), otherwise a no-op -
+        called from both the Stop button and closeEvent's stop path.
+        """
+        if self._session_start_time is None:
+            return
+        duration = time.monotonic() - self._session_start_time
+        session_history.append_session(
+            duration_seconds=duration,
+            device_name=self.device_combo.currentText() if hasattr(self, 'device_combo') else None,
+            avg_bpm=self.bpm_estimate,
+        )
+        self._session_start_time = None
+
     def toggle_visualization(self):
         if self.engine is not None:
             self._finish_recording()  # otherwise stopping mid-recording silently discards it
+            self._log_session_end()
             self.engine.stop()
             self.engine = None
             self._latest_frame = None
@@ -1104,6 +1190,7 @@ class AudioSpectrumVisualizer(QMainWindow):
 
             self.engine = new_engine
             self.beat_detector = BeatDetector()
+            self._session_start_time = time.monotonic()
             self.device_combo.setEnabled(False)
             self.start_button.setText('Stop Visualization')
 
@@ -1128,6 +1215,7 @@ class AudioSpectrumVisualizer(QMainWindow):
     def closeEvent(self, event):
         if self.engine is not None:
             self._finish_recording()  # otherwise closing the window mid-recording silently discards it, same as Stop used to
+            self._log_session_end()
             self.engine.stop()
             self.engine = None
         if self.midi_sender is not None:
