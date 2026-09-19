@@ -19,10 +19,10 @@ class AudioSpectrumEngine:
 
     `on_spectrum(freq_bins, spectrum, max_magnitude)` is invoked from a
     background thread for every audio block whose peak magnitude clears
-    `noise_threshold` — potentially dozens of times per second with real
+    `noise_threshold` - potentially dozens of times per second with real
     audio. Callers that touch UI state from `on_spectrum` are responsible
     for their own thread-safety, and should avoid doing slow work (like a
-    GUI redraw) directly in the callback — main.py stashes the latest frame
+    GUI redraw) directly in the callback - main.py stashes the latest frame
     and redraws from a fixed-rate timer instead, rather than redrawing on
     every single call.
     """
@@ -46,7 +46,7 @@ class AudioSpectrumEngine:
         self.smoothing_sigma = smoothing_sigma
         self.device = device  # sounddevice input device index, or None for the system default
         self.channels = channels  # number of input channels to actually open on the stream
-        self.channel_mode = channel_mode  # "mono_mix" | "left" | "right" — which channel(s) to analyze
+        self.channel_mode = channel_mode  # "mono_mix" | "left" | "right" - which channel(s) to analyze
         self.window_type = window_type  # one of analysis.WINDOW_FUNCTIONS' keys
 
         self.audio_queue = queue.Queue()
@@ -88,26 +88,38 @@ class AudioSpectrumEngine:
             except queue.Empty:
                 continue
 
-            samples = self._select_channel(audio_block)
+            try:
+                samples = self._select_channel(audio_block)
 
-            if self.recording:
-                self._recorded_chunks.append(samples.copy())
+                if self.recording:
+                    self._recorded_chunks.append(samples.copy())
 
-            windowed_samples = apply_window(samples, self.window_type)
+                windowed_samples = apply_window(samples, self.window_type)
 
-            spectrum = np.abs(np.fft.rfft(windowed_samples, n=self.block_size))
-            spectrum = gaussian_filter1d(spectrum, sigma=self.smoothing_sigma)
-            max_magnitude = np.max(spectrum)
+                spectrum = np.abs(np.fft.rfft(windowed_samples, n=self.block_size))
+                # scipy's gaussian_filter1d raises ZeroDivisionError for
+                # sigma=0 rather than treating it as "no smoothing" - found
+                # by an actual end-to-end run (unmocked, real thread) after
+                # unchecking the smoothing checkbox live. sigma<=0 is
+                # unambiguously "disabled" here, so skip the call entirely
+                # instead of passing 0 through to scipy.
+                if self.smoothing_sigma > 0:
+                    spectrum = gaussian_filter1d(spectrum, sigma=self.smoothing_sigma)
+                max_magnitude = np.max(spectrum)
 
-            if max_magnitude > self.noise_threshold:
-                freq_bins = np.fft.rfftfreq(self.block_size, 1 / self.fs)
-                try:
+                if max_magnitude > self.noise_threshold:
+                    freq_bins = np.fft.rfftfreq(self.block_size, 1 / self.fs)
                     self.on_spectrum(freq_bins, spectrum, max_magnitude)
-                except Exception as exc:
-                    # A raising callback must not kill this background
-                    # thread silently (the whole engine would appear to
-                    # "freeze" with no further updates and no visible error).
-                    print(f"Audio-SpectraCLI: on_spectrum callback raised: {exc}")
+            except Exception as exc:
+                # Nothing in this block may be allowed to kill the thread
+                # silently - Python's default handling for an unhandled
+                # exception in a background thread is to print a traceback
+                # and let the thread die, with the rest of the app (main
+                # thread, GUI) carrying on oblivious that audio processing
+                # has permanently stopped. That looks exactly like a
+                # freeze, with no visible error, which is what actually
+                # happened here before this fix.
+                print(f"Audio-SpectraCLI: error while processing an audio block: {exc}")
 
     def start(self):
         if self.running:
@@ -118,7 +130,7 @@ class AudioSpectrumEngine:
         # blocksize is deliberately tied to block_size: leaving it at
         # PortAudio's default (None) lets it choose its own, often much
         # smaller, callback chunk size, causing on_spectrum to fire far more
-        # often than "once per block_size samples" — under sustained real
+        # often than "once per block_size samples" - under sustained real
         # audio this is what actually overwhelms a per-callback GUI redraw.
         self.stream = sd.InputStream(device=self.device, blocksize=self.block_size, callback=self._audio_callback)
         self.stream.start()

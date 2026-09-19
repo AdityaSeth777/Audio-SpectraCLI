@@ -94,6 +94,43 @@ def test_raising_callback_does_not_kill_the_processing_thread():
     assert call_count["n"] == 2, "thread died after the first callback raised instead of processing the second block"
 
 
+def test_zero_smoothing_sigma_does_not_kill_the_processing_thread():
+    """Regression test for a real bug found via an actual (unmocked) E2E
+    run: scipy's gaussian_filter1d raises ZeroDivisionError for sigma=0,
+    which the GUI sets when the "Smooth spectrum" checkbox is unchecked.
+    That's a legitimate, common user action, not an edge case - it must
+    not silently kill the background thread (looks exactly like a freeze:
+    no more spectrum updates, no visible error, since Python's default
+    behavior for an unhandled thread exception is to print a traceback and
+    let the thread die while the rest of the app carries on unaware).
+    """
+    call_count = {"n": 0}
+    engine = AudioSpectrumEngine(
+        on_spectrum=lambda *args: call_count.__setitem__("n", call_count["n"] + 1),
+        block_size=1024,
+        noise_threshold=0.01,
+        smoothing_sigma=0,  # the exact value the "disable smoothing" checkbox sets
+    )
+    engine.running = True
+
+    t = np.linspace(0, 1, engine.block_size, endpoint=False)
+    loud_block = (np.sin(2 * np.pi * 440 * t).astype(np.float32)).reshape(-1, 1)
+    engine.audio_queue.put(loud_block.copy())
+    engine.audio_queue.put(loud_block.copy())
+
+    worker = threading.Thread(target=engine._process_audio, daemon=True)
+    worker.start()
+
+    deadline = time.time() + 2
+    while call_count["n"] < 2 and time.time() < deadline:
+        time.sleep(0.01)
+
+    engine.running = False
+    worker.join(timeout=1)
+
+    assert call_count["n"] == 2, "sigma=0 must not crash the processing thread - it means 'no smoothing', not an error"
+
+
 def test_stop_is_safe_when_never_started():
     engine, _ = make_engine()
     engine.stop()  # must not raise even though .start() was never called

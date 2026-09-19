@@ -13,7 +13,7 @@ export type ApiAuthResult =
 /**
  * Authenticates a Data/Analysis API request via `Authorization: Bearer <key>`,
  * checks the key owner's subscription is currently active (the Analysis API
- * is a paid-plan feature — enforced here, not just at key-creation time, so
+ * is a paid-plan feature - enforced here, not just at key-creation time, so
  * a downgraded account's existing keys stop working without needing to be
  * explicitly revoked), then rate-limits it.
  */

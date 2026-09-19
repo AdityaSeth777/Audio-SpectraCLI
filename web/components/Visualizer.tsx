@@ -39,8 +39,8 @@ export function Visualizer({ isPaid }: { isPaid: boolean }) {
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const waterfallHistoryRef = useRef<Float32Array[]>([]);
-  const drawRef = useRef<() => void>(() => {});
-  const tickRef = useRef<() => void>(() => {});
+  const drawRef = useRef<() => void>(() => { });
+  const tickRef = useRef<() => void>(() => { });
 
   const effectiveViewMode: ViewMode = isPaid ? settings.viewMode : "bars";
 
@@ -163,7 +163,7 @@ export function Visualizer({ isPaid }: { isPaid: boolean }) {
 
   const loadPresets = async () => {
     const res = await fetch("/api/presets");
-    if (!res.ok) return; // not paid, or not signed in — presets UI is hidden entirely in that case anyway
+    if (!res.ok) return; // not paid, or not signed in - presets UI is hidden entirely in that case anyway
     const data = await res.json();
     setPresets(data.presets);
   };

@@ -2,13 +2,13 @@ import { spawn } from "child_process";
 import ffmpegPath from "ffmpeg-static";
 import type { DecodedAudio } from "./wav";
 
-export class TranscodeError extends Error {}
+export class TranscodeError extends Error { }
 
 const OUTPUT_SAMPLE_RATE = 44100;
 
 /**
  * Decodes compressed audio (MP3, AAC, OGG, ...) to mono PCM via a bundled
- * static ffmpeg binary (ffmpeg-static) — there's no pure-JS/WASM MP3/AAC
+ * static ffmpeg binary (ffmpeg-static) - there's no pure-JS/WASM MP3/AAC
  * decoder worth trusting for this, and ffmpeg is the standard tool for it.
  * Chosen over relying on a system `ffmpeg` install specifically so this
  * works out of the box on Vercel Node.js functions (adds ~80MB to the
@@ -63,7 +63,7 @@ export function transcodeToMono16BitPcm(inputBytes: Buffer): Promise<DecodedAudi
 
     ffmpeg.stdin.on("error", () => {
       // Writing to stdin after ffmpeg has exited (e.g. it rejected the input
-      // as an unrecognized format) throws EPIPE — the 'close' handler above
+      // as an unrecognized format) throws EPIPE - the 'close' handler above
       // still fires with a non-zero code and reports the real error.
     });
     ffmpeg.stdin.write(inputBytes);

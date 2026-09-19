@@ -5,7 +5,7 @@ import { Redis } from "@upstash/redis";
  * Rate limiter, keyed by an arbitrary string (an API key id here).
  *
  * If UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN are set, this uses a
- * real shared Redis-backed sliding window — correct across multiple
+ * real shared Redis-backed sliding window - correct across multiple
  * serverless instances. Without them, it falls back to the original
  * in-memory fixed-window limiter, which is only correct for a single Node
  * process; that fallback exists so the app still runs (e.g. `npm run dev`)

@@ -1,5 +1,5 @@
 # Aditya Seth
-# Description: MIDI-out support — converts a dominant frequency into a MIDI
+# Description: MIDI-out support - converts a dominant frequency into a MIDI
 # note and sends it to a virtual MIDI port. mido/python-rtmidi are core
 # dependencies (see requirements.txt/setup.py), but this module still
 # degrades gracefully (RTMIDI_AVAILABLE/MidiUnavailableError) rather than
@@ -24,7 +24,7 @@ class MidiNoteSender:
     """Sends note-on/note-off MIDI messages for a live-changing dominant frequency.
 
     Opens one virtual MIDI output port on construction. Windows doesn't
-    support creating virtual ports natively (rtmidi raises there) — this
+    support creating virtual ports natively (rtmidi raises there) - this
     surfaces as MidiUnavailableError with a message pointing at loopMIDI,
     rather than a confusing raw rtmidi traceback.
     """
@@ -35,8 +35,8 @@ class MidiNoteSender:
                 "python-rtmidi isn't installed. Install it with: pip install python-rtmidi mido"
             )
 
-        # Wraps both MidiOut() construction and open_virtual_port() — not
-        # just the latter — since either can raise on a given system (e.g.
+        # Wraps both MidiOut() construction and open_virtual_port() - not
+        # just the latter - since either can raise on a given system (e.g.
         # no MIDI subsystem/driver at all), and any exception type here
         # should surface as a clear MidiUnavailableError, not an arbitrary
         # exception escaping into the GUI's checkbox-toggle slot.
@@ -45,7 +45,7 @@ class MidiNoteSender:
             self._midiout.open_virtual_port(port_name)
         except Exception as exc:
             raise MidiUnavailableError(
-                "Couldn't open a virtual MIDI port (Windows has no native virtual MIDI port support — "
+                "Couldn't open a virtual MIDI port (Windows has no native virtual MIDI port support - "
                 "install a loopback driver like loopMIDI, then pick a real output port instead)."
             ) from exc
 

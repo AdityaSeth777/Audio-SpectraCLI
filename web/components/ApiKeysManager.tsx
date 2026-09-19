@@ -17,7 +17,7 @@ export function ApiKeysManager({ isPaid }: { isPaid: boolean }) {
   const [error, setError] = useState<string | null>(null);
 
   // `loading` starts `true` (initial useState value below) and is only ever
-  // set back to `false` here — never re-set to `true` — since a function
+  // set back to `false` here - never re-set to `true` - since a function
   // that calls setState as its first synchronous statement is exactly what
   // react-hooks/set-state-in-effect flags when called from an effect.
   const loadKeys = async () => {
@@ -38,7 +38,7 @@ export function ApiKeysManager({ isPaid }: { isPaid: boolean }) {
     // react-hooks/set-state-in-effect flags any effect body that calls a
     // function which may eventually call setState, even across an await.
     // This is the standard fetch-on-mount pattern (no data-fetching library
-    // is warranted for one dashboard list) — intentional, not an oversight.
+    // is warranted for one dashboard list) - intentional, not an oversight.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadKeys();
   }, []);
@@ -85,7 +85,7 @@ export function ApiKeysManager({ isPaid }: { isPaid: boolean }) {
 
       {!isPaid && (
         <p className="text-sm text-white/60">
-          The Data/Analysis API requires the paid plan — upgrade above to create a key. Existing keys stop
+          The Data/Analysis API requires the paid plan - upgrade above to create a key. Existing keys stop
           working immediately if your plan lapses.
         </p>
       )}

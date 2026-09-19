@@ -61,7 +61,7 @@
   allowed to propagate and abort the process.
 - The GUI's canvas now resizes properly on window maximize (no clipped axis
   labels), and every slider (Duration/Sampling Rate/Block Size/Noise
-  Threshold) has a paired numeric spinbox next to it — the exact value is
+  Threshold) has a paired numeric spinbox next to it - the exact value is
   always visible and directly typeable, not just draggable.
 - Five view modes: **Line** (the original), **Bars** (equalizer-style),
   **Waterfall** (scrolling history spectrogram), **Circular** (radial
@@ -70,19 +70,19 @@
 - **dB (logarithmic) scale** toggle, **windowing function** choice
   (None/Hann/Hamming/Blackman) to reduce spectral leakage, an adjustable
   **noise threshold** and **Gaussian smoothing strength** (previously
-  hardcoded), and **stereo channel selection** (Mono mix/Left/Right —
+  hardcoded), and **stereo channel selection** (Mono mix/Left/Right -
   previously always forced mono).
-- **Peak-hold markers** (Line/Bars views) — a line that holds at the recent
+- **Peak-hold markers** (Line/Bars views) - a line that holds at the recent
   peak and decays, like a hardware audio meter.
 - **Live BPM estimation** and a **dominant-note readout**, always shown
   above the canvas regardless of view mode. The BPM estimate is a simple
-  onset/energy heuristic, not lab-grade beat tracking — expect it to be
+  onset/energy heuristic, not lab-grade beat tracking - expect it to be
   unstable on non-rhythmic input, that's inherent to how simple it is.
 - **Export** the current view as PNG (also bound to Ctrl+S) or the current
   frame's data as CSV, and **record microphone input to a WAV file**.
 - **Save/load setting presets** to a local JSON file.
 - **In-GUI microphone selection** (previously only choosable via the
-  `launch.py` interactive launcher at startup) — swap devices from a
+  `launch.py` interactive launcher at startup) - swap devices from a
   dropdown before clicking Start; changing it while running is disabled,
   the same way sampling rate/block size are, since a live stream can't be
   reconfigured without reopening it.
@@ -90,7 +90,7 @@
   to a virtual MIDI port, turning the visualizer into a simple audio-to-MIDI
   tool. `mido`/`python-rtmidi` are core dependencies (installed
   automatically by `requirements.txt`/`pip install Audio-SpectraCLI`/the
-  interactive launcher's `.venv` setup) — but the checkbox still degrades
+  interactive launcher's `.venv` setup) - but the checkbox still degrades
   gracefully with a clear explanation instead of crashing if they're somehow
   missing or fail to build in a given environment. Windows has no native
   virtual MIDI port support without a third-party loopback driver like
@@ -169,16 +169,16 @@ Audio-SpectraCLI/
 
 <details open>
 
-<summary> Instant Launch (interactive script — double-click and go)</summary>
+<summary> Instant Launch (interactive script - double-click and go)</summary>
 
 If you already have the repo (`git clone` or downloaded), the fastest way to
-run the native GUI is the interactive launcher — it sits alongside every
+run the native GUI is the interactive launcher - it sits alongside every
 other installation method below, it doesn't replace them.
 
-- **macOS/Linux, from a terminal**: `./run.sh` — this is the canonical
+- **macOS/Linux, from a terminal**: `./run.sh` - this is the canonical
   entry point; read it if you want to know exactly what runs.
 - **macOS/Linux, by double-clicking in Finder**: double-click
-  **`run.command`** — Finder normally opens a plain `.sh` file in a text
+  **`run.command`** - Finder normally opens a plain `.sh` file in a text
   editor instead of running it, so `run.command` exists purely as a thin
   wrapper that calls `run.sh` for that double-click case. It contains no
   logic of its own.
@@ -188,16 +188,16 @@ other installation method below, it doesn't replace them.
 It detects your OS and Python version, checks whether `numpy`/`scipy`/
 `sounddevice`/`matplotlib`/`PyQt5` are installed. If any are missing, it
 offers to set up a local `.venv` next to the script and install them there
-— it deliberately never tries to `pip install` straight into your system
+- it deliberately never tries to `pip install` straight into your system
 Python, since modern Homebrew/python.org Python (and recent Linux distros)
 refuse that with an "externally-managed-environment" error. After that
 one-time setup, it lists your real audio input devices (via
 `sounddevice.query_devices()`) so you can pick one (or just hit Enter for
-the system default) — this is the only thing it asks, since it's the one
+the system default) - this is the only thing it asks, since it's the one
 setting the GUI itself has no way to know. It then opens the GUI and starts
 visualizing immediately, no extra click. Duration, sampling rate, and block
 size are **not** asked in the terminal, since the GUI already has sliders
-for all three once it's open — asking twice for the same thing would just
+for all three once it's open - asking twice for the same thing would just
 be redundant. Once `.venv` exists, later runs skip the setup check entirely
 and go straight to the device prompt.
 
@@ -210,23 +210,23 @@ and go straight to the device prompt.
 2. **Get the repo**: `git clone https://github.com/AdityaSeth777/Audio-SpectraCLI.git`
    (or download and unzip it from GitHub).
 3. **Run it**: either open Terminal, `cd` into the repo folder, and run
-   `./run.sh` — or double-click `run.command` in Finder.
+   `./run.sh` - or double-click `run.command` in Finder.
    - Double-click, first time only: macOS may refuse to run it with an
      "unidentified developer" warning, since it isn't code-signed.
      Right-click (or Control-click) `run.command` → **Open** → confirm in
      the dialog. You only need to do this once.
 4. **The launcher runs.** If packages are missing, it asks: `Set them up
-   now in a local .venv (won't touch your system Python)? [Y/n]` — press
+   now in a local .venv (won't touch your system Python)? [Y/n]` - press
    Enter or `y`. This downloads and installs `numpy`/`scipy`/`sounddevice`/
    `matplotlib`/`PyQt5` into a `.venv` folder it creates next to the script
    (takes a minute or two; only happens once).
 5. **Grant microphone access** when macOS prompts for it (a system dialog
-   asking to let Terminal/Python use the microphone) — click **Allow**. If
+   asking to let Terminal/Python use the microphone) - click **Allow**. If
    you miss it or previously denied it, go to **System Settings → Privacy
    & Security → Microphone** and enable it for Terminal yourself.
 6. **Pick an audio input device** from the list it prints (or just press
-   Enter for the default) — that's the only prompt.
-7. The **GUI window opens and starts visualizing immediately** — speak or
+   Enter for the default) - that's the only prompt.
+7. The **GUI window opens and starts visualizing immediately** - speak or
    play audio near the selected microphone and you should see the spectrum
    move. Adjust duration/sampling rate/block size using the sliders inside
    the GUI itself.

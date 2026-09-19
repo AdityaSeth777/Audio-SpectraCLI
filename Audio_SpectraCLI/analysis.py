@@ -1,6 +1,6 @@
 # Aditya Seth
 # Description: Pure, independently-testable analysis helpers used by both
-# the GUI (main.py) and the engine (engine.py) — windowing, magnitude/dB
+# the GUI (main.py) and the engine (engine.py) - windowing, magnitude/dB
 # conversion, musical note naming, and a lightweight beat/BPM estimator.
 # Kept separate from engine.py so each piece can be unit tested without
 # spinning up real audio hardware or Qt.
@@ -61,7 +61,7 @@ def nearest_musical_note(frequency_hz):
 def downsample_max_pool(values, num_bins):
     """Reduces `values` to `num_bins` points by taking the max within each group.
 
-    Mirrors web/lib/dsp.ts's downsampleMaxPool — used here for the Bars view
+    Mirrors web/lib/dsp.ts's downsampleMaxPool - used here for the Bars view
     (a few dozen wide bars read far better than one per FFT bin) and for the
     Waterfall view (keeps each history row a fixed width regardless of the
     current block_size).
@@ -78,7 +78,7 @@ def downsample_max_pool(values, num_bins):
 class BeatDetector:
     """Lightweight onset-based BPM estimator.
 
-    Not lab-grade beat tracking — it flags an "onset" whenever overall
+    Not lab-grade beat tracking - it flags an "onset" whenever overall
     energy jumps well above its own recent rolling average (a simple
     spectral-flux-style heuristic), then estimates BPM from the median
     interval between the last several onsets. Good enough for a clearly

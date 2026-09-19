@@ -20,7 +20,7 @@ _app = QApplication.instance() or QApplication([])
 
 
 def _real_frame(window, freq_hz=440, secondary_hz=None):
-    # Sample spacing must be 1/fs, not 1/block_size — a block doesn't span
+    # Sample spacing must be 1/fs, not 1/block_size - a block doesn't span
     # exactly one second unless block_size happens to equal fs. Getting this
     # wrong doesn't break these tests (none assert an exact frequency), but
     # it would silently misrepresent what frequency is actually injected.
@@ -37,7 +37,7 @@ def test_all_view_modes_render_without_raising():
     """The most important test here: every view mode must survive a real render.
 
     This is exactly the category of bug that caused the reported production
-    crash (an exception escaping update_plot) — so each mode gets driven
+    crash (an exception escaping update_plot) - so each mode gets driven
     through a real frame, not mocked away.
     """
     window = AudioSpectrumVisualizer()
@@ -112,7 +112,7 @@ def test_window_type_and_channel_mode_controls_update_live_engine():
 def test_channel_mode_left_or_right_opens_stereo_stream():
     """channels-to-open is now resolved from the actual device's reported
     max_input_channels (_resolve_channel_count), not hardcoded from
-    channel_mode alone — a genuinely mono-only device must not be asked to
+    channel_mode alone - a genuinely mono-only device must not be asked to
     open 2 channels. Simulate a stereo-capable device here."""
     window = AudioSpectrumVisualizer()
     window.channel_mode_combo.setCurrentText("Left")

@@ -4,7 +4,7 @@
 Run directly (`python3 launch.py` / `python launch.py`), or via the
 double-clickable `run.command` (macOS/Linux) or `run.bat` (Windows) wrappers
 next to this file. This is an ADDITIONAL way to run the tool, alongside pip
-install, Docker, and the VS Code extension — it doesn't replace any of them.
+install, Docker, and the VS Code extension - it doesn't replace any of them.
 
 What it does:
   1. Detects the OS (macOS/Windows/Linux) and Python version.
@@ -13,12 +13,12 @@ What it does:
      re-launches itself under that venv's Python. This sidesteps
      "externally-managed-environment" pip errors that modern
      Homebrew/python.org Python (PEP 668) and recent Linux distros raise
-     when you try to pip install into the system Python directly — a very
+     when you try to pip install into the system Python directly - a very
      common first-run failure this avoids automatically instead of crashing.
   3. Lists real audio input devices (via sounddevice) and lets you pick one
-     — this is hardware-specific and the GUI has no way to know it itself.
+     - this is hardware-specific and the GUI has no way to know it itself.
   4. Opens the GUI and starts visualizing immediately (no extra click, and
-     no other prompts) — duration, sampling rate, and block size are
+     no other prompts) - duration, sampling rate, and block size are
      already adjustable via sliders inside the GUI itself once it's open,
      so the launcher doesn't ask about them separately.
 """
@@ -67,7 +67,7 @@ def ensure_dependencies_or_relaunch_in_venv():
     """Ensures required packages are importable in the running interpreter.
 
     If any are missing, offers to set up (or reuse) a local .venv and
-    installs them there — never attempts to pip install into the system
+    installs them there - never attempts to pip install into the system
     Python, since that's exactly what modern "externally-managed-
     environment" Pythons refuse to do. After installing, re-execs this
     script under the venv's Python so the rest of the run continues there.
@@ -121,18 +121,18 @@ def choose_audio_device():
     try:
         chosen = int(choice)
     except ValueError:
-        print(f"Not a number — using default device {default_index}.")
+        print(f"Not a number - using default device {default_index}.")
         return None
 
     if chosen not in [i for i, _ in input_devices]:
-        print(f"No input device with index {chosen} — using default device {default_index}.")
+        print(f"No input device with index {chosen} - using default device {default_index}.")
         return None
 
     return chosen
 
 
 def main():
-    print(f"Audio-SpectraCLI launcher — detected {detect_os_label()}, Python {platform.python_version()}\n")
+    print(f"Audio-SpectraCLI launcher - detected {detect_os_label()}, Python {platform.python_version()}\n")
 
     ensure_dependencies_or_relaunch_in_venv()
     device = choose_audio_device()
@@ -141,14 +141,14 @@ def main():
 
     from Audio_SpectraCLI import AudioSpectrumVisualizer
 
-    # Duration/sampling rate/block size are intentionally NOT asked here —
+    # Duration/sampling rate/block size are intentionally NOT asked here -
     # the GUI already has sliders for all three once it's open, so asking
     # again in the terminal first would just be a second, redundant prompt
     # for the same settings.
     app = QApplication(sys.argv)
     window = AudioSpectrumVisualizer(device=device)
     window.show()
-    window.toggle_visualization()  # start immediately — no extra click needed
+    window.toggle_visualization()  # start immediately - no extra click needed
     sys.exit(app.exec_())
 
 

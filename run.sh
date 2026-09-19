@@ -5,12 +5,12 @@
 # On macOS, double-clicking a plain .sh file in Finder usually opens it in
 # a text editor rather than running it (Finder's default association),
 # so run.command exists purely as a thin wrapper around this script for
-# that double-click case — this file is the one with the actual logic.
+# that double-click case - this file is the one with the actual logic.
 set -e
 cd "$(dirname "$0")"
 
 if [ -x ".venv/bin/python3" ]; then
-    # A previous run already set up a local venv with everything installed —
+    # A previous run already set up a local venv with everything installed -
     # use it directly and skip the system-Python dependency check entirely.
     PYTHON=".venv/bin/python3"
 elif command -v python3 >/dev/null 2>&1; then

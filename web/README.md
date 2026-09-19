@@ -89,24 +89,24 @@ this is a single-frame spectral snapshot, not a full-track analysis.
 `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` are set; falls back to
 an in-memory single-process limiter otherwise (fine for local dev, not
 correct once actually deployed across multiple instances without Upstash
-configured — `isRateLimitDistributed()` in `lib/rateLimit.ts` tells you
+configured - `isRateLimitDistributed()` in `lib/rateLimit.ts` tells you
 which mode is active).
 
 **Paid plan required**: creating a key (`POST /api/keys`) and using one
 (`POST /api/v1/analyze`) both require the account's subscription to be
-`active`. A downgrade takes effect immediately on existing keys too — they
+`active`. A downgrade takes effect immediately on existing keys too - they
 aren't just revoked at creation time.
 
 ## Known gaps
 
 - Presets can only be saved/loaded/deleted from the `/visualize` page itself
-  (where the live settings live) — there's no separate presets list on
+  (where the live settings live) - there's no separate presets list on
   `/dashboard` the way API keys have one.
 - ffmpeg-static's bundled binary is ~44MB (measured on this machine; varies
-  by platform) added to the deploy — worth confirming actual function size
+  by platform) added to the deploy - worth confirming actual function size
   on Vercel once deployed there, in case it bumps against a plan's function
   size limit.
 - Stripe metered billing needs a Billing Meter configured on the Stripe
   dashboard side before `STRIPE_API_USAGE_METER_EVENT_NAME` does anything.
-- Upstash env vars are optional but recommended before real traffic — see
+- Upstash env vars are optional but recommended before real traffic - see
   the rate limiting note above.

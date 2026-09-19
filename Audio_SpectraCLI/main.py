@@ -105,7 +105,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.engine = None
         # The engine's background thread calls _on_engine_spectrum for every
         # qualifying audio block (potentially dozens per second with real
-        # mic input) — far faster than a matplotlib redraw can keep up with.
+        # mic input) - far faster than a matplotlib redraw can keep up with.
         # Rather than redrawing on every single block (which backs up Qt's
         # event queue under sustained real audio and was the actual cause of
         # freezing/crashing), it just stashes the latest frame; a fixed-rate
@@ -144,7 +144,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         status_row.addStretch(1)
         outer_layout.addLayout(status_row)
 
-        # Controls live in a scroll area — there are now enough of them that
+        # Controls live in a scroll area - there are now enough of them that
         # a fixed-height panel would either shrink the canvas badly or run
         # off the bottom of the screen on smaller displays.
         scroll = QScrollArea()
@@ -397,7 +397,7 @@ class AudioSpectrumVisualizer(QMainWindow):
     # ---- rendering ----------------------------------------------------
 
     def _on_engine_spectrum(self, freq_bins, spectrum, max_magnitude):
-        # Called from the engine's background thread — must stay cheap and
+        # Called from the engine's background thread - must stay cheap and
         # must never touch Qt widgets directly from here.
         self._latest_frame = (freq_bins, spectrum, max_magnitude)
         self._last_spectrum_frame_time = time.monotonic()
@@ -413,7 +413,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         except Exception as exc:
             # A GUI update slot's exceptions can otherwise crash the whole
             # process (some PyQt5/sip builds treat an unhandled exception
-            # escaping a slot as fatal) — never let that happen. Skip this
+            # escaping a slot as fatal) - never let that happen. Skip this
             # frame and keep the visualizer running instead of aborting.
             print(f'Audio-SpectraCLI: skipped a frame due to an error: {exc}')
 
@@ -455,7 +455,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         if self.view_mode in ("line", "bars"):
             self.ax.set_xlim(self.frequency_range)
             # dB values are typically negative (e.g. -10), so "*1.2 for
-            # headroom" makes them MORE negative — a ceiling BELOW the
+            # headroom" makes them MORE negative - a ceiling BELOW the
             # actual peak, clipping it off the top of the plot. Linear
             # magnitudes are always >= 0, where *1.2 headroom is correct.
             y_ceiling = visible_max + 5 if self.db_scale else max(visible_max * 1.2, 0.01)
@@ -467,7 +467,7 @@ class AudioSpectrumVisualizer(QMainWindow):
             # already set imshow's extent to (0, num_history_rows), and
             # overwriting it with the linear-magnitude range used by
             # line/bars would squash the whole image into a sliver at the
-            # bottom — exactly the bug this comment is here to prevent
+            # bottom - exactly the bug this comment is here to prevent
             # reintroducing.
             self.ax.set_xlim(self.frequency_range)
             self.ax.set_xlabel('Frequency (Hz)')
@@ -477,7 +477,7 @@ class AudioSpectrumVisualizer(QMainWindow):
     def _render_line_or_bars(self, freq_bins, display_spectrum, visible_freqs, visible_values):
         if self.view_mode == "bars":
             # Downsample the VISIBLE (masked-to-frequency-range) bins, not
-            # the full spectrum — using the full spectrum here made bar
+            # the full spectrum - using the full spectrum here made bar
             # spacing correspond to the whole 0..Nyquist range while `width`
             # was sized for the (usually much narrower) selected frequency
             # range, so bars rendered as thin slivers with large gaps
@@ -499,7 +499,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         # Resampled via interpolation to EXACTLY WATERFALL_WIDTH points,
         # regardless of how many bins are visible right now. That count
         # varies with the (live-changeable) frequency range, and
-        # downsample_max_pool only shrinks — it returns its input unchanged
+        # downsample_max_pool only shrinks - it returns its input unchanged
         # when already short, which let rows of different lengths land in
         # the same history and make np.array(...)/imshow blow up on a
         # ragged array (and permanently corrupt the history, since the
@@ -579,7 +579,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         """Sends a MIDI note-off once input has been quiet for a while.
 
         send_note_for_frequency only emits a note-off when a DIFFERENT note
-        comes in — but engine.py's callback stops firing entirely once the
+        comes in - but engine.py's callback stops firing entirely once the
         signal drops below noise_threshold, so without this, the last note
         sent before things went quiet would sustain forever (a stuck note
         on whatever's listening to the virtual MIDI port) instead of ever
@@ -599,7 +599,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.duration = value
 
     def set_sampling_rate(self, value):
-        # Takes effect the next time Start is clicked — a running
+        # Takes effect the next time Start is clicked - a running
         # sounddevice stream can't have its sample rate changed in place;
         # that requires stopping and reopening it.
         self.fs = value
@@ -672,7 +672,7 @@ class AudioSpectrumVisualizer(QMainWindow):
 
     def set_device_by_combo_index(self, combo_index):
         if self.engine is not None:
-            # Changing the device on a running stream isn't supported —
+            # Changing the device on a running stream isn't supported -
             # same constraint as sampling rate/block size. Restore the
             # combo to the device actually in use instead of silently
             # ignoring the click.
@@ -694,7 +694,7 @@ class AudioSpectrumVisualizer(QMainWindow):
                 # Defense in depth: midi_out.py already converts its own
                 # failures to MidiUnavailableError, but a checkbox-toggle
                 # slot is exactly the kind of place an unhandled exception
-                # can abort the whole process on some PyQt5/sip builds — an
+                # can abort the whole process on some PyQt5/sip builds - an
                 # unexpected error here must still fail safely, not crash.
                 self.midi_checkbox.setChecked(False)
                 QMessageBox.warning(self, 'MIDI unavailable', f'Unexpected error enabling MIDI: {exc}')
@@ -708,7 +708,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         """Applies a setting to the currently running engine, if any.
 
         engine.py reads these attributes fresh on every processed block, so
-        this takes effect on the very next block — no restart needed, unlike
+        this takes effect on the very next block - no restart needed, unlike
         fs/block_size/channels/device which require reopening the stream.
         """
         if self.engine is not None:
@@ -725,7 +725,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         except Exception as exc:
             # File I/O (permission denied, disk full, bad path, ...) run
             # directly inside a button-click Qt slot must not be allowed to
-            # raise uncaught — same crash class as the render-path fixes.
+            # raise uncaught - same crash class as the render-path fixes.
             QMessageBox.warning(self, 'Export failed', f'Could not save PNG: {exc}')
 
     def export_csv(self):
@@ -758,7 +758,7 @@ class AudioSpectrumVisualizer(QMainWindow):
     def _finish_recording(self):
         """Stops recording (if active) and offers to save it. Safe to call
         whether or not a recording is actually in progress, and used both by
-        the Record button and by toggle_visualization's stop path — clicking
+        the Record button and by toggle_visualization's stop path - clicking
         "Stop Visualization" while recording used to silently discard the
         buffered audio and leave the Record button reading "Stop Recording"
         with no engine behind it."""
@@ -841,7 +841,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         if 'frequency_range' in settings:
             fmin, fmax = settings['frequency_range']
             # set_frequency_min/max each validate against the CURRENT
-            # self.frequency_range, not the other new value — so setting
+            # self.frequency_range, not the other new value - so setting
             # either spinbox first can get silently rejected if the
             # currently-loaded range doesn't overlap the new one (e.g.
             # current is (15000, 20000), preset wants (0, 2500): setting
@@ -893,7 +893,7 @@ class AudioSpectrumVisualizer(QMainWindow):
             if self.midi_sender is not None:
                 # Otherwise a note started before Stop was clicked has no
                 # more frames coming (the silence-timeout check above only
-                # runs while the render timer still has a reason to care) —
+                # runs while the render timer still has a reason to care) -
                 # it would stay stuck on until a different pitch is next
                 # detected in some future session.
                 self.midi_sender.stop()
@@ -917,7 +917,7 @@ class AudioSpectrumVisualizer(QMainWindow):
             except Exception as exc:
                 # sd.InputStream(...)/.start() raise on ordinary, easily-hit
                 # conditions (device unplugged, unsupported fs/channels for
-                # that device, device now busy) — completely uncaught here
+                # that device, device now busy) - completely uncaught here
                 # would crash the Start button's click slot outright on this
                 # PyQt5/sip build, the same way every other fix in this file
                 # exists to prevent.
@@ -933,7 +933,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         """Picks how many channels to actually open on the input stream.
 
         "Mono (mix)" is supposed to average L+R down to mono, but that
-        requires opening 2 channels to have anything to average — opening
+        requires opening 2 channels to have anything to average - opening
         only 1 (as this used to do unconditionally) meant `_select_channel`
         always hit its "already mono" fast path first and the averaging
         branch was unreachable. This asks the device what it actually
@@ -962,7 +962,7 @@ __all__ = ['AudioSpectrumVisualizer']
 
 def main():
     """Entry point for `python -m Audio_SpectraCLI.main` (e.g. the Dockerfile's
-    default CMD) — previously missing, so that command silently imported and
+    default CMD) - previously missing, so that command silently imported and
     exited without ever showing a window."""
     import sys
 

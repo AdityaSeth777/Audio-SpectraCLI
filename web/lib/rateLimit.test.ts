@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { checkRateLimit, isRateLimitDistributed } from "./rateLimit";
 
-describe("checkRateLimit (in-memory fallback — no UPSTASH_* env vars set in tests)", () => {
+describe("checkRateLimit (in-memory fallback - no UPSTASH_* env vars set in tests)", () => {
   it("is not backed by distributed storage without Upstash env vars", () => {
     expect(isRateLimitDistributed()).toBe(false);
   });

@@ -83,7 +83,7 @@ def test_waterfall_rows_stay_a_fixed_width_even_when_visible_bin_count_changes()
     shorter than the target width, so changing the frequency range live
     (which changes how many bins are visible) could append rows of
     different lengths, making np.array(history) ragged and crashing imshow
-    — and permanently corrupting the history, since the bad row was already
+    - and permanently corrupting the history, since the bad row was already
     appended before the crash."""
     window = AudioSpectrumVisualizer()
     window.view_mode_combo.setCurrentText("Waterfall")
@@ -91,7 +91,7 @@ def test_waterfall_rows_stay_a_fixed_width_even_when_visible_bin_count_changes()
     window.apply_frequency_preset("0 - 20,000 Hz (default)")
     window.update_plot(*_tone_frame(window))
 
-    # Narrow the range a lot — drastically changes the visible bin count —
+    # Narrow the range a lot - drastically changes the visible bin count -
     # while Waterfall history has already accumulated rows from the wider range.
     window.apply_frequency_preset("0 - 2,500 Hz")
     window.update_plot(*_tone_frame(window))  # must not raise
@@ -121,7 +121,7 @@ def test_loading_a_preset_applies_a_non_overlapping_frequency_range_correctly():
 
 def test_load_preset_with_malformed_json_shows_warning_instead_of_crashing(tmp_path):
     """Bug: load_preset's json.load()/apply_settings_dict() call ran
-    unguarded inside a button-click Qt slot — a non-JSON file raised
+    unguarded inside a button-click Qt slot - a non-JSON file raised
     json.JSONDecodeError straight out of the slot uncaught."""
     window = AudioSpectrumVisualizer()
     bad_file = tmp_path / "not_json.json"
@@ -198,7 +198,7 @@ def test_midi_note_off_sent_when_stopping_while_a_note_is_sounding():
 def test_midi_note_off_sent_after_silence_timeout():
     """Bug: send_note_for_frequency only sends note-off when a DIFFERENT
     note arrives, but engine.py's callback stops firing entirely once
-    input goes quiet — so without an explicit silence watchdog, the last
+    input goes quiet - so without an explicit silence watchdog, the last
     note before silence would sustain forever."""
     window = AudioSpectrumVisualizer()
     fake_sender = MagicMock()
@@ -224,7 +224,7 @@ def test_stopping_visualization_while_recording_saves_instead_of_discarding():
     """Bug: clicking Stop Visualization while a WAV recording was in
     progress dropped the engine (and its buffered samples) without ever
     stopping/saving the recording, and left the Record button reading
-    "Stop Recording" with no engine behind it — so clicking it next
+    "Stop Recording" with no engine behind it - so clicking it next
     actually started a new recording instead of doing anything useful."""
     window = AudioSpectrumVisualizer()
     with patch("Audio_SpectraCLI.engine.sd.InputStream", return_value=MagicMock()):
