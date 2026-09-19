@@ -6,6 +6,7 @@
 import csv
 import json
 import time
+from collections import deque
 
 import numpy as np
 import sounddevice as sd
@@ -35,7 +36,15 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 from . import presets as preset_store
-from .analysis import BeatDetector, downsample_max_pool, magnitude_to_db, nearest_musical_note
+from .analysis import (
+    BeatDetector,
+    compute_rms,
+    downsample_max_pool,
+    is_clipping,
+    magnitude_to_db,
+    nearest_musical_note,
+    render_sparkline,
+)
 from .engine import AudioSpectrumEngine
 from .midi_out import MidiNoteSender, MidiUnavailableError, frequency_to_midi_note
 
@@ -43,6 +52,10 @@ RENDER_INTERVAL_MS = 33  # ~30fps redraw cap, independent of the audio block rat
 GAUSSIAN_SMOOTHING_SIGMA = 2  # matches AudioSpectrumEngine's own default; 0 effectively disables smoothing
 PEAK_HOLD_DECAY = 0.92  # per-frame multiplicative decay of the held peak
 MIDI_SILENCE_TIMEOUT_S = 0.5  # send a MIDI note-off if no new spectrum frame arrives for this long
+PEAK_FREQ_HISTORY_LEN = 50  # sparkline width; ~a few seconds of history at typical block rates
+CLIP_THRESHOLD = 0.98  # matches analysis.is_clipping's own default; named here for the status label text
+SILENCE_RMS_THRESHOLD = 0.01  # below this RMS, a block counts toward the silence streak
+SILENCE_STREAK_FOR_WARNING = 15  # consecutive quiet blocks before the "Silence" warning is shown
 WATERFALL_HISTORY_ROWS = 60
 WATERFALL_WIDTH = 200  # fixed column count per row, independent of block_size
 BARS_COUNT = 64
@@ -104,6 +117,17 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.midi_sender = None
         self._last_spectrum_frame_time = None
 
+        # RMS/clipping/silence come from on_audio_block (every captured
+        # block, unfiltered by noise_threshold); peak-frequency history
+        # comes from _update_status_labels, which already computes the
+        # dominant frequency for the note label. Plain attribute
+        # assignment/deque.append from the engine's background thread is
+        # safe here for the same reason _latest_frame's is (see above).
+        self._latest_rms = 0.0
+        self._latest_clipping = False
+        self._silence_block_streak = 0
+        self._peak_freq_history = deque(maxlen=PEAK_FREQ_HISTORY_LEN)
+
         self.engine = None
         # The engine's background thread calls _on_engine_spectrum for every
         # qualifying audio block (potentially dozens per second with real
@@ -145,6 +169,17 @@ class AudioSpectrumVisualizer(QMainWindow):
         status_row.addWidget(self.note_label)
         status_row.addStretch(1)
         outer_layout.addLayout(status_row)
+
+        stats_row = QHBoxLayout()
+        self.rms_label = QLabel('RMS: --')
+        self.clip_silence_label = QLabel('')
+        self.peak_freq_sparkline_label = QLabel('Peak Hz:')
+        self.peak_freq_sparkline_label.setStyleSheet('font-family: monospace;')
+        stats_row.addWidget(self.rms_label)
+        stats_row.addWidget(self.clip_silence_label)
+        stats_row.addWidget(self.peak_freq_sparkline_label)
+        stats_row.addStretch(1)
+        outer_layout.addLayout(stats_row)
 
         # Controls live in a scroll area - there are now enough of them that
         # a fixed-height panel would either shrink the canvas badly or run
@@ -435,6 +470,17 @@ class AudioSpectrumVisualizer(QMainWindow):
         self._latest_frame = (freq_bins, spectrum, max_magnitude)
         self._last_spectrum_frame_time = time.monotonic()
 
+    def _on_audio_block(self, samples):
+        # Also called from the engine's background thread, for EVERY
+        # captured block - unlike _on_engine_spectrum, this isn't gated by
+        # noise_threshold, which is what lets it actually detect silence.
+        self._latest_rms = compute_rms(samples)
+        self._latest_clipping = is_clipping(samples, threshold=CLIP_THRESHOLD)
+        if self._latest_rms < SILENCE_RMS_THRESHOLD:
+            self._silence_block_streak += 1
+        else:
+            self._silence_block_streak = 0
+
     def _render_latest_frame(self):
         self._check_midi_silence_timeout()
 
@@ -599,6 +645,31 @@ class AudioSpectrumVisualizer(QMainWindow):
                 self.note_label.setText(f"Note: {note_name}{octave} ({dominant_freq:.1f} Hz)")
             else:
                 self.note_label.setText(f"Note: -- ({dominant_freq:.1f} Hz)")
+            self._peak_freq_history.append(dominant_freq)
+
+        self._update_stats_row()
+
+    def _update_stats_row(self):
+        self.rms_label.setText(f"RMS: {self._latest_rms:.3f}")
+
+        if self._latest_clipping:
+            self.clip_silence_label.setText('⚠ Clipping')
+            self.clip_silence_label.setStyleSheet('color: red; font-weight: bold;')
+        elif self._silence_block_streak >= SILENCE_STREAK_FOR_WARNING:
+            self.clip_silence_label.setText('⚠ Silence')
+            self.clip_silence_label.setStyleSheet('color: gray;')
+        else:
+            self.clip_silence_label.setText('')
+            self.clip_silence_label.setStyleSheet('')
+
+        if self._peak_freq_history:
+            sparkline = render_sparkline(
+                self._peak_freq_history, low=self.frequency_range[0], high=self.frequency_range[1],
+            )
+            latest = self._peak_freq_history[-1]
+            self.peak_freq_sparkline_label.setText(f"Peak Hz: {sparkline} {latest:.0f}")
+        else:
+            self.peak_freq_sparkline_label.setText('Peak Hz:')
 
     def _maybe_send_midi(self, visible_freqs, visible_values):
         if not self.midi_enabled or self.midi_sender is None or visible_values.size == 0:
@@ -991,6 +1062,11 @@ class AudioSpectrumVisualizer(QMainWindow):
             self._latest_frame = None
             self.beat_detector = None
             self._last_spectrum_frame_time = None
+            self._latest_rms = 0.0
+            self._latest_clipping = False
+            self._silence_block_streak = 0
+            self._peak_freq_history.clear()
+            self._update_stats_row()
             if self.midi_sender is not None:
                 # Otherwise a note started before Stop was clicked has no
                 # more frames coming (the silence-timeout check above only
@@ -1004,6 +1080,7 @@ class AudioSpectrumVisualizer(QMainWindow):
             channels = self._resolve_channel_count()
             new_engine = AudioSpectrumEngine(
                 on_spectrum=self._on_engine_spectrum,
+                on_audio_block=self._on_audio_block,
                 fs=self.fs,
                 block_size=self.block_size,
                 device=self.device,

@@ -14,7 +14,7 @@ import numpy as np
 from PyQt5.QtWidgets import QApplication, QMessageBox
 
 from Audio_SpectraCLI import AudioSpectrumVisualizer
-from Audio_SpectraCLI.main import VIEW_MODES
+from Audio_SpectraCLI.main import SILENCE_STREAK_FOR_WARNING, VIEW_MODES
 
 _app = QApplication.instance() or QApplication([])
 
@@ -246,6 +246,58 @@ def test_save_and_load_preset_round_trip(tmp_path):
 
     window.close()
     window2.close()
+
+
+def test_stats_row_reflects_rms_clipping_and_peak_history():
+    window = AudioSpectrumVisualizer()
+
+    window._on_audio_block(np.full(window.block_size, 0.5))
+    frame = _real_frame(window, freq_hz=440)
+    window.update_plot(*frame)
+
+    assert "0.5" in window.rms_label.text()
+    assert window.clip_silence_label.text() == ""
+    assert len(window._peak_freq_history) == 1
+    assert "Peak Hz:" in window.peak_freq_sparkline_label.text()
+
+    window._on_audio_block(np.full(window.block_size, 0.99))
+    window.update_plot(*frame)
+    assert "Clipping" in window.clip_silence_label.text()
+
+    window.close()
+
+
+def test_stats_row_shows_silence_warning_after_a_quiet_streak():
+    window = AudioSpectrumVisualizer()
+    quiet_block = np.zeros(window.block_size)
+
+    for _ in range(SILENCE_STREAK_FOR_WARNING):
+        window._on_audio_block(quiet_block)
+    window._update_stats_row()
+
+    assert "Silence" in window.clip_silence_label.text()
+    window.close()
+
+
+def test_stopping_visualization_resets_stats(monkeypatch):
+    window = AudioSpectrumVisualizer()
+    window._on_audio_block(np.full(window.block_size, 0.99))
+    window._peak_freq_history.append(123.0)
+
+    fake_engine = MagicMock()
+    fake_engine.recording = False  # a truthy MagicMock default here would hit the
+    # real QFileDialog.getSaveFileName in _finish_recording, which hangs forever
+    # under the offscreen Qt platform these tests run under.
+    window.engine = fake_engine
+    window.toggle_visualization()  # engine is not None -> takes the "stop" branch
+
+    assert window._latest_rms == 0.0
+    assert window._latest_clipping is False
+    assert window._silence_block_streak == 0
+    assert len(window._peak_freq_history) == 0
+    assert window.clip_silence_label.text() == ""
+
+    window.close()
 
 
 def test_named_preset_manager_save_load_rename_delete(tmp_path, monkeypatch):
