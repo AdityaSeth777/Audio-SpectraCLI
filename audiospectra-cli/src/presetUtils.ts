@@ -28,6 +28,14 @@ export function resolvePresetsDir(
     env: NodeJS.ProcessEnv = process.env,
     homedir: string = os.homedir(),
 ): string {
-    const audioSpectraHome = env.AUDIOSPECTRA_CLI_HOME || path.join(homedir, ".audiospectra_cli");
-    return path.join(audioSpectraHome, "presets");
+    // AUDIOSPECTRA_CLI_HOME substitutes for the user's *home* directory
+    // (that's how the Python side's tests use it to isolate from a real
+    // $HOME), not for `.audiospectra_cli` itself - `.audiospectra_cli/presets`
+    // is appended in both cases. Appending it only in the no-override branch
+    // (an earlier version of this function did that) pointed the two
+    // implementations at different directories whenever the override was
+    // set, silently breaking the "presets are interchangeable" guarantee
+    // this module exists for - caught by an actual cross-language E2E run.
+    const home = env.AUDIOSPECTRA_CLI_HOME || homedir;
+    return path.join(home, ".audiospectra_cli", "presets");
 }
