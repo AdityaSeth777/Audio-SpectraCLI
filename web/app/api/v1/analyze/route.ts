@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authenticateApiRequest } from "@/lib/apiAuth";
 import { applyHannWindow, nextPowerOfTwo, rfftMagnitude } from "@/lib/fft";
 import { parseWav, UnsupportedWavError } from "@/lib/wav";
+import { transcodeToMono16BitPcm, TranscodeError } from "@/lib/transcode";
 import { binToFrequency, downsampleMaxPool, findDominantBin, magnitudeToDb } from "@/lib/dsp";
 import { db } from "@/lib/db";
 import { apiUsageEvents, users } from "@/lib/db/schema";
@@ -27,6 +28,9 @@ export async function POST(request: Request) {
     if (contentType.includes("audio/wav") || contentType.includes("audio/x-wav")) {
       const buffer = Buffer.from(await request.arrayBuffer());
       decoded = parseWav(buffer);
+    } else if (contentType.includes("audio/mpeg") || contentType.includes("audio/mp3") || contentType.includes("audio/aac")) {
+      const buffer = Buffer.from(await request.arrayBuffer());
+      decoded = await transcodeToMono16BitPcm(buffer);
     } else if (contentType.includes("application/json")) {
       const body = await request.json();
       if (!Array.isArray(body?.samples) || typeof body?.sampleRate !== "number") {
@@ -38,13 +42,15 @@ export async function POST(request: Request) {
       decoded = { sampleRate: body.sampleRate, samples: Float32Array.from(body.samples) };
     } else {
       return NextResponse.json(
-        { error: "Unsupported Content-Type. Use audio/wav or application/json." },
+        { error: "Unsupported Content-Type. Use audio/wav, audio/mpeg, audio/aac, or application/json." },
         { status: 415 },
       );
     }
   } catch (err) {
-    const message = err instanceof UnsupportedWavError ? err.message : "Could not parse request body.";
-    return NextResponse.json({ error: message }, { status: 400 });
+    if (err instanceof UnsupportedWavError || err instanceof TranscodeError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Could not parse request body." }, { status: 400 });
   }
 
   if (decoded.samples.length === 0) {

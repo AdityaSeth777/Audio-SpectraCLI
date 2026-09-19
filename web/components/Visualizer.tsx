@@ -23,11 +23,15 @@ export const DEFAULT_SETTINGS: VisualizerSettings = {
 
 const WATERFALL_HISTORY_ROWS = 120;
 
+type SavedPreset = { id: string; name: string; settings: VisualizerSettings };
+
 export function Visualizer({ isPaid }: { isPaid: boolean }) {
   const [settings, setSettings] = useState<VisualizerSettings>(DEFAULT_SETTINGS);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dominantFrequency, setDominantFrequency] = useState<number | null>(null);
+  const [presets, setPresets] = useState<SavedPreset[]>([]);
+  const [newPresetName, setNewPresetName] = useState("");
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -157,6 +161,37 @@ export function Visualizer({ isPaid }: { isPaid: boolean }) {
 
   useEffect(() => stop, [stop]);
 
+  const loadPresets = async () => {
+    const res = await fetch("/api/presets");
+    if (!res.ok) return; // not paid, or not signed in — presets UI is hidden entirely in that case anyway
+    const data = await res.json();
+    setPresets(data.presets);
+  };
+
+  useEffect(() => {
+    if (!isPaid) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount, see ApiKeysManager.tsx for the same pattern
+    loadPresets();
+  }, [isPaid]);
+
+  const savePreset = async () => {
+    if (!newPresetName.trim()) return;
+    const res = await fetch("/api/presets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newPresetName.trim(), settings }),
+    });
+    if (res.ok) {
+      setNewPresetName("");
+      loadPresets();
+    }
+  };
+
+  const deletePreset = async (id: string) => {
+    await fetch(`/api/presets?id=${id}`, { method: "DELETE" });
+    loadPresets();
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <canvas ref={canvasRef} width={800} height={400} className="w-full rounded border border-white/10 bg-black" />
@@ -197,6 +232,39 @@ export function Visualizer({ isPaid }: { isPaid: boolean }) {
 
       {effectiveViewMode === "tuner" && dominantFrequency !== null && (
         <p className="text-sm text-white/60">Dominant frequency: {dominantFrequency.toFixed(1)} Hz</p>
+      )}
+
+      {isPaid && (
+        <div className="flex flex-col gap-2 border-t border-white/10 pt-4">
+          <h3 className="text-sm font-medium">Presets</h3>
+
+          <div className="flex gap-2">
+            <input
+              value={newPresetName}
+              onChange={(e) => setNewPresetName(e.target.value)}
+              placeholder="Preset name"
+              className="flex-1 rounded border border-white/20 bg-transparent px-3 py-2 text-sm"
+            />
+            <button onClick={savePreset} className="rounded border border-white/20 px-4 py-2 text-sm hover:bg-white/10">
+              Save current settings
+            </button>
+          </div>
+
+          {presets.length > 0 && (
+            <ul className="flex flex-wrap gap-2">
+              {presets.map((preset) => (
+                <li key={preset.id} className="flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-sm">
+                  <button onClick={() => setSettings(preset.settings)} className="hover:underline">
+                    {preset.name}
+                  </button>
+                  <button onClick={() => deletePreset(preset.id)} className="text-red-400 hover:underline">
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { presets } from "@/lib/db/schema";
 import { getEntitlement } from "@/lib/entitlement";
@@ -31,4 +31,18 @@ export async function POST(request: Request) {
     .returning();
 
   return NextResponse.json({ preset: row }, { status: 201 });
+}
+
+export async function DELETE(request: Request) {
+  const { userId, isPaid } = await getEntitlement();
+  if (!userId || !isPaid) {
+    return NextResponse.json({ error: "Presets require a paid plan" }, { status: 403 });
+  }
+
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "Missing ?id= query param" }, { status: 400 });
+
+  await db.delete(presets).where(and(eq(presets.id, id), eq(presets.ownerId, userId)));
+
+  return NextResponse.json({ deleted: true });
 }

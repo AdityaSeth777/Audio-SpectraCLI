@@ -16,7 +16,7 @@ class AudioSpectrumVisualizer(QMainWindow):
     # the connected slot onto this widget's own (GUI) thread.
     spectrumReady = pyqtSignal(object, object, float)
 
-    def __init__(self, duration=10, fs=44100, block_size=4096, frequency_range=(20, 20000), color='blue'):
+    def __init__(self, duration=10, fs=44100, block_size=4096, frequency_range=(20, 20000), color='blue', device=None):
         super().__init__()
         self.setWindowTitle('Audio Spectrum Visualizer')
         self.setGeometry(100, 100, 800, 600)
@@ -26,6 +26,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.block_size = block_size  # Block size
         self.frequency_range = frequency_range  # Frequency range
         self.color = color  # Color
+        self.device = device  # sounddevice input device index, or None for the system default
 
         self.engine = None
         self.spectrumReady.connect(self.update_plot)
@@ -107,6 +108,7 @@ class AudioSpectrumVisualizer(QMainWindow):
                 on_spectrum=self.spectrumReady.emit,
                 fs=self.fs,
                 block_size=self.block_size,
+                device=self.device,
             )
             self.engine.start()
             self.start_button.setText('Stop Visualization')

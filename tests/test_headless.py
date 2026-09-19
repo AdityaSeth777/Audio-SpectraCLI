@@ -22,9 +22,11 @@ def test_parse_args_defaults():
     assert args.block_size == 4096
     assert args.bars == 64
     assert args.noise_threshold == 0.05
+    assert args.device is None
 
 
 def test_parse_args_overrides():
-    args = parse_args(["--fs", "22050", "--bars", "32"])
+    args = parse_args(["--fs", "22050", "--bars", "32", "--device", "2"])
     assert args.fs == 22050
     assert args.bars == 32
+    assert args.device == 2

@@ -23,10 +23,21 @@ export async function GET() {
   return NextResponse.json({ keys: rows });
 }
 
-/** Creates a new API key. The plaintext key is returned exactly once - it is never stored. */
+/**
+ * Creates a new API key. The plaintext key is returned exactly once - it is
+ * never stored. Requires an active paid plan - the Data/Analysis API is a
+ * paid-tier product, enforced both here (creation) and in apiAuth.ts (usage,
+ * so a later downgrade stops a key from working without needing revocation).
+ */
 export async function POST(request: Request) {
-  const { userId } = await getEntitlement();
+  const { userId, isPaid } = await getEntitlement();
   if (!userId) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!isPaid) {
+    return NextResponse.json(
+      { error: "Creating a Data/Analysis API key requires the paid plan." },
+      { status: 402 },
+    );
+  }
 
   const body = await request.json().catch(() => ({}));
   const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim() : "Unnamed key";

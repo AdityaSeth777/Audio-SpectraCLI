@@ -5,6 +5,8 @@ are exercised directly with synthetic blocks, since sounddevice.InputStream
 is never constructed unless `.start()` is called.
 """
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 
 from Audio_SpectraCLI.engine import AudioSpectrumEngine
@@ -58,3 +60,21 @@ def test_stop_is_safe_when_never_started():
     engine.stop()  # must not raise even though .start() was never called
     assert engine.running is False
     assert engine.stream is None
+
+
+def test_start_passes_selected_device_to_input_stream():
+    engine, _ = make_engine(device=5)
+    fake_stream = MagicMock()
+    with patch("Audio_SpectraCLI.engine.sd.InputStream", return_value=fake_stream) as mock_stream_cls:
+        engine.start()
+        mock_stream_cls.assert_called_once_with(device=5, callback=engine._audio_callback)
+    engine.stop()
+
+
+def test_start_defaults_to_none_device_when_unspecified():
+    engine, _ = make_engine()
+    fake_stream = MagicMock()
+    with patch("Audio_SpectraCLI.engine.sd.InputStream", return_value=fake_stream) as mock_stream_cls:
+        engine.start()
+        mock_stream_cls.assert_called_once_with(device=None, callback=engine._audio_callback)
+    engine.stop()

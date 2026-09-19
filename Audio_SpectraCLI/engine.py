@@ -28,12 +28,14 @@ class AudioSpectrumEngine:
         block_size=4096,
         noise_threshold=0.05,
         smoothing_sigma=2,
+        device=None,
     ):
         self.on_spectrum = on_spectrum
         self.fs = fs
         self.block_size = block_size
         self.noise_threshold = noise_threshold
         self.smoothing_sigma = smoothing_sigma
+        self.device = device  # sounddevice input device index, or None for the system default
 
         self.audio_queue = queue.Queue()
         self.running = False
@@ -64,7 +66,7 @@ class AudioSpectrumEngine:
         self.running = True
         sd.default.samplerate = self.fs
         sd.default.channels = 1
-        self.stream = sd.InputStream(callback=self._audio_callback)
+        self.stream = sd.InputStream(device=self.device, callback=self._audio_callback)
         self.stream.start()
         self._worker_thread = threading.Thread(target=self._process_audio, daemon=True)
         self._worker_thread.start()

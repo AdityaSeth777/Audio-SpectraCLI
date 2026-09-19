@@ -23,7 +23,7 @@ export default async function DashboardPage() {
 
       <hr className="border-white/10" />
 
-      <ApiKeysManager />
+      <ApiKeysManager isPaid={isPaid} />
     </div>
   );
 }

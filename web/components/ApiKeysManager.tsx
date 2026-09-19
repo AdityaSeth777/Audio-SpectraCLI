@@ -9,7 +9,7 @@ type ApiKeySummary = {
   lastUsedAt: string | null;
 };
 
-export function ApiKeysManager() {
+export function ApiKeysManager({ isPaid }: { isPaid: boolean }) {
   const [keys, setKeys] = useState<ApiKeySummary[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
   const [justCreatedKey, setJustCreatedKey] = useState<string | null>(null);
@@ -83,14 +83,26 @@ export function ApiKeysManager() {
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
+      {!isPaid && (
+        <p className="text-sm text-white/60">
+          The Data/Analysis API requires the paid plan — upgrade above to create a key. Existing keys stop
+          working immediately if your plan lapses.
+        </p>
+      )}
+
       <div className="flex gap-2">
         <input
           value={newKeyName}
           onChange={(e) => setNewKeyName(e.target.value)}
           placeholder="Key name (optional)"
-          className="flex-1 rounded border border-white/20 bg-transparent px-3 py-2 text-sm"
+          disabled={!isPaid}
+          className="flex-1 rounded border border-white/20 bg-transparent px-3 py-2 text-sm disabled:opacity-50"
         />
-        <button onClick={createKey} className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">
+        <button
+          onClick={createKey}
+          disabled={!isPaid}
+          className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
           Create key
         </button>
       </div>

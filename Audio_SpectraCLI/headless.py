@@ -32,6 +32,7 @@ def parse_args(argv):
     parser.add_argument("--block-size", type=int, default=4096, help="FFT block size.")
     parser.add_argument("--bars", type=int, default=64, help="Number of bars to downsample each frame to.")
     parser.add_argument("--noise-threshold", type=float, default=0.05)
+    parser.add_argument("--device", type=int, default=None, help="sounddevice input device index (default: system default).")
     return parser.parse_args(argv)
 
 
@@ -52,6 +53,7 @@ def main(argv=None):
         fs=args.fs,
         block_size=args.block_size,
         noise_threshold=args.noise_threshold,
+        device=args.device,
     )
 
     stop_event = threading.Event()

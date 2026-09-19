@@ -67,6 +67,9 @@ Audio-SpectraCLI/
 ├── requirements.txt
 ├── setup.cfg
 ├── setup.py
+├── launch.py           # interactive cross-platform launcher (see Instant Launch)
+├── run.command         # double-click wrapper for launch.py on macOS/Linux
+├── run.bat             # double-click wrapper for launch.py on Windows
 ├── .github/
 │   └── workflows/
 │       ├── docker-publish.yml
@@ -111,6 +114,34 @@ Audio-SpectraCLI/
 ```
 
 ## Installation Methods : (Now Extension available)
+
+<details open>
+
+<summary> Instant Launch (interactive script — double-click and go)</summary>
+
+If you already have the repo (`git clone` or downloaded), the fastest way to
+run the native GUI is the interactive launcher — it sits alongside every
+other installation method below, it doesn't replace them.
+
+- **macOS/Linux**: double-click **`run.command`** (or run
+  `./run.command` in a terminal).
+- **Windows**: double-click **`run.bat`**.
+- **Any OS directly**: `python3 launch.py` (or `python launch.py`).
+
+It detects your OS and Python version, checks whether `numpy`/`scipy`/
+`sounddevice`/`matplotlib`/`PyQt5` are installed and offers to `pip install`
+whichever are missing, lists your real audio input devices (via
+`sounddevice.query_devices()`) so you can pick one (or just hit Enter for
+the system default), prompts for duration/sampling rate/block size/color
+with sensible defaults on Enter, and then opens the GUI and starts
+visualizing immediately — no extra click needed. Hitting Enter through
+every prompt gets you a running visualizer in a few seconds.
+
+---
+
+</details>
+
+----
 
 <details>
 
