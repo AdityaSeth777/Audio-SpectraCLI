@@ -38,7 +38,7 @@ export function magnitudeToDb(magnitude: number, reference = 1): number {
   return 20 * Math.log10(Math.max(magnitude, 1e-12) / reference);
 }
 
-/** Reduces an array to `numBars` points by taking the max within each group — mirrors headless.py's downsampler. */
+/** Reduces an array to `numBars` points by taking the max within each group - mirrors headless.py's downsampler. */
 export function downsampleMaxPool(values: ArrayLike<number>, numBars: number): number[] {
   if (values.length <= numBars) return Array.from(values);
   const edges = Array.from({ length: numBars + 1 }, (_, i) => Math.floor((i * values.length) / numBars));
@@ -63,7 +63,7 @@ export function frequencyToBin(frequencyHz: number, sampleRate: number, fftSize:
   return Math.round((frequencyHz * fftSize) / sampleRate);
 }
 
-/** Finds the bin with the highest magnitude within [minHz, maxHz] — used for tuner/pitch mode. */
+/** Finds the bin with the highest magnitude within [minHz, maxHz] - used for tuner/pitch mode. */
 export function findDominantBin(
   magnitudes: Float32Array,
   sampleRate: number,

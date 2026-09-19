@@ -17,7 +17,7 @@ export default function Home() {
 
       <h1 className="text-4xl font-bold">Audio-SpectraCLI</h1>
       <p className="max-w-md text-white/70">
-        Real-time audio spectrum visualization, right in your browser. No install, no server round-trip —
+        Real-time audio spectrum visualization, right in your browser. No install, no server round-trip -
         your microphone audio never leaves your device.
       </p>
       <Link href="/visualize" className="rounded bg-blue-600 px-6 py-3 text-white hover:bg-blue-700">

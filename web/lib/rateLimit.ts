@@ -2,7 +2,7 @@
  * In-memory fixed-window rate limiter, keyed by an arbitrary string (an API
  * key id here). Good enough for a single Node process; it is NOT correct
  * across multiple serverless instances (each gets its own memory), since
- * that needs a shared store like Upstash/Redis — flagged here rather than
+ * that needs a shared store like Upstash/Redis - flagged here rather than
  * silently pretending this is production-grade multi-instance rate limiting.
  */
 

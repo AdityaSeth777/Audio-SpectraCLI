@@ -39,7 +39,9 @@
 ## Current Features (with respect to 4.1.0)
 
 - Real-time visualization of Fast Fourier Transform (FFT) spectrum of audio input.
-- Live VS Code Extension support.
+- Live VS Code Extension support - the extension now spawns a real headless
+  audio process and streams the spectrum into a live webview canvas (see
+  [Web & Extension Additions](#web--extension-additions) below).
 - Support for adjusting parameters such as duration, sampling rate, and block size.
 - Seamless integration with SoundDevice for audio input capture.
 - Customizable Frequency Range: Allow users to specify the frequency range to display in the spectrum.
@@ -47,6 +49,9 @@
 - Added PyQt5 modules and a Gaussian filter that enables user input for Duration (in seconds), Sampling Rate (in Hz), Block Size, and also smoothens the output.
 - Might need to keep in mind that the Gaussian filter is too strong and it won't recognise any noise and display it's spectra. Only actual input through mic such as conversations and music are displayed which can be categorised as real inputs or audio, and of course in real time.
 - Much more dynamic and user-controlled interface.
+- A headless, GUI-free streaming mode (`python -m Audio_SpectraCLI.headless`)
+  that emits spectrum frames as JSON lines - the same audio/FFT engine that
+  powers the GUI, usable from scripts or other tools without PyQt5 installed.
 
 ## Packaging
 
@@ -69,27 +74,40 @@ Audio-SpectraCLI/
 │       └── python-publish.yml
 ├── Audio_SpectraCLI/
 │   ├── main-old.py
-│   ├── main.py
+│   ├── main.py           # PyQt5 GUI, now built on engine.py
+│   ├── engine.py         # Qt-independent capture/FFT/smoothing core, shared by main.py and headless.py
+│   ├── headless.py       # `python -m Audio_SpectraCLI.headless` JSON-streaming CLI mode
 │   └── __init__.py
-└── tests/
-├── ├── test-old.py
-├── └── test.py
-└── audiospectra-cli/
-    ├── assets
-    ├── dist
-    ├── src/
-    │   ├── test
-    │   ├── extension.test.ts
-    │   └── extension.ts
-    ├── audio-spectracli-extension-v.vsix
-    ├── CHANGELOG.md
-    ├── ebuild.js
-    ├── eslint.config.mjs
-    ├── package.json
-    ├── package-lock.json
-    ├── README.md
-    ├── sample.py
-    └── tsconfig.json
+├── tests/
+│   ├── test-old.py
+│   ├── test.py
+│   ├── test_engine.py
+│   ├── test_headless.py
+│   └── test_gui_smoke.py
+├── audiospectra-cli/         # VS Code extension (now with a real live webview)
+│   ├── assets
+│   ├── dist
+│   ├── src/
+│   │   ├── test
+│   │   ├── extension.test.ts
+│   │   ├── extension.ts
+│   │   ├── visualizerPanel.ts
+│   │   ├── lineParser.ts
+│   │   └── lineParser.test.ts
+│   ├── audio-spectracli-extension-v.vsix
+│   ├── CHANGELOG.md
+│   ├── esbuild.js
+│   ├── eslint.config.mjs
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── README.md
+│   ├── sample.py
+│   └── tsconfig.json
+└── web/                       # Next.js SaaS app: hosted visualizer, accounts/billing, analysis API
+    ├── app/
+    ├── components/
+    ├── lib/
+    └── README.md
 ```
 
 ## Installation Methods : (Now Extension available)
@@ -324,11 +342,45 @@ Once you have activated the audio_visualizer instance, feel free to use it where
 
 ---
 
+## Web & Extension Additions
+
+Audio-SpectraCLI is expanding beyond the native Python CLI into a small
+family of products that all sit on top of the same FFT/DSP approach:
+
+- **Hosted web visualizer** (`web/`) - a Next.js app with a client-side
+  (browser-only, mic audio never leaves the device) visualizer, free vs.
+  paid tiers (waterfall/tuner/export/presets are paid), Clerk accounts, and
+  Stripe subscription billing. See [web/README.md](./web/README.md) for
+  setup - it needs your own Clerk, Stripe, and Postgres (Neon) credentials
+  to run.
+- **Live VS Code extension** (`audiospectra-cli/`) - the extension now
+  spawns `python -m Audio_SpectraCLI.headless` and streams the live
+  spectrum into a real webview panel inside VS Code (`Audio-SpectraCLI:
+  Start/Stop Live Visualization`), instead of only inserting a code
+  snippet. Requires Python + this package installed and on your `PATH`
+  (configurable via the `audioSpectraCli.pythonPath` setting). See
+  [audiospectra-cli/README.md](./audiospectra-cli/README.md).
+- **Data/Analysis API** (`web/app/api/v1/analyze`) - a server-side HTTP API
+  for third parties: send WAV audio or raw PCM samples, get back spectrum
+  and dominant-frequency JSON. Authenticated with per-account API keys,
+  rate-limited, and billed on a usage basis. See
+  [web/README.md](./web/README.md) for the request/response shape.
+
+The native Python CLI (`main.py`/`AudioSpectrumVisualizer`) is unaffected -
+it now runs on the same shared `engine.py` internally, but its behavior and
+public API are unchanged.
+
 ## Upcoming Features
 
-- Save and Export: Implement functionality to save the generated spectrum as an image file or export data for further analysis.
-- CLI endpoints.
-- Option to choose between CLI/GUI.
+- CLI endpoints. ✅ Done - see `python -m Audio_SpectraCLI.headless` above.
+- Save and Export: ✅ Done in the web visualizer (PNG export, paid tier).
+  Native GUI export is still open.
+- Option to choose between CLI/GUI. ✅ Done - `main.py` (GUI) vs.
+  `headless.py` (CLI/JSON streaming) both run on the same engine.
+- Server-side decoding of compressed audio formats (MP3/AAC) for the
+  Analysis API - currently WAV-only.
+- A shared, multi-instance-safe rate limiter (e.g. Redis/Upstash) for the
+  Analysis API - the current one is in-memory, single-instance only.
 
 ---
 

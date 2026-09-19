@@ -1,5 +1,5 @@
 """Smoke test: confirms the native PyQt5 GUI still works end-to-end after the
-engine.py extraction — construct the window, start visualization (with
+engine.py extraction - construct the window, start visualization (with
 sounddevice mocked out, since this sandbox has no audio hardware), inject a
 synthetic spectrum through the engine's callback path, and confirm it reaches
 the plot via the Qt signal, then stop cleanly.

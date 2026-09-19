@@ -15,7 +15,7 @@ export function nextPowerOfTwo(n: number): number {
   return p;
 }
 
-/** Hann window — reduces spectral leakage from analyzing a finite-length block. */
+/** Hann window - reduces spectral leakage from analyzing a finite-length block. */
 export function applyHannWindow(samples: Float32Array): Float32Array {
   const n = samples.length;
   const windowed = new Float32Array(n);
@@ -77,7 +77,7 @@ function fftInPlace(real: Float64Array, imag: Float64Array): void {
 
 /**
  * Computes the magnitude spectrum of real-valued `samples` (like numpy's
- * `np.abs(np.fft.rfft(...))`). `samples.length` must be a power of two —
+ * `np.abs(np.fft.rfft(...))`). `samples.length` must be a power of two -
  * pad or truncate before calling. Returns `samples.length / 2 + 1` bins.
  */
 export function rfftMagnitude(samples: Float32Array): Float64Array {

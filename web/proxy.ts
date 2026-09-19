@@ -1,7 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 // Named `proxy.ts` per Next.js 16 (the `middleware.ts` convention was renamed
-// to `proxy.ts` — see docs/superpowers/specs — Clerk's helper works either way
+// to `proxy.ts` - see docs/superpowers/specs - Clerk's helper works either way
 // since Next only cares about the exported function shape, not the file name.
 
 const isProtectedRoute = createRouteMatcher([

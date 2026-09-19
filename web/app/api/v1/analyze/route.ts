@@ -79,7 +79,7 @@ export async function POST(request: Request) {
 async function recordUsage(apiKeyId: string, ownerId: string) {
   await db.insert(apiUsageEvents).values({ apiKeyId, endpoint: ENDPOINT_NAME });
 
-  // Best-effort usage report to Stripe metered billing — never fails the API
+  // Best-effort usage report to Stripe metered billing - never fails the API
   // response if Stripe/config is missing, since this product can run and be
   // billed manually (via apiUsageEvents) before metered billing is wired up.
   const meterEventName = process.env.STRIPE_API_USAGE_METER_EVENT_NAME;
@@ -94,6 +94,6 @@ async function recordUsage(apiKeyId: string, ownerId: string) {
       payload: { stripe_customer_id: user.stripeCustomerId, value: "1" },
     });
   } catch {
-    // Swallow — usage is still recorded in apiUsageEvents for manual reconciliation.
+    // Swallow - usage is still recorded in apiUsageEvents for manual reconciliation.
   }
 }

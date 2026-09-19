@@ -23,7 +23,7 @@ export async function GET() {
   return NextResponse.json({ keys: rows });
 }
 
-/** Creates a new API key. The plaintext key is returned exactly once — it is never stored. */
+/** Creates a new API key. The plaintext key is returned exactly once - it is never stored. */
 export async function POST(request: Request) {
   const { userId } = await getEntitlement();
   if (!userId) return NextResponse.json({ error: "Not signed in" }, { status: 401 });

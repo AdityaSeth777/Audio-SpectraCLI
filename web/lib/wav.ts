@@ -1,11 +1,11 @@
 /**
  * Minimal parser for uncompressed PCM WAV files (16-bit int or 32-bit float).
- * Deliberately scoped to WAV only for the API's v1 — decoding MP3/AAC/etc.
+ * Deliberately scoped to WAV only for the API's v1 - decoding MP3/AAC/etc.
  * server-side needs a real codec (ffmpeg or similar), which is a bigger,
  * separate piece of work than this API's first release covers.
  */
 
-export class UnsupportedWavError extends Error {}
+export class UnsupportedWavError extends Error { }
 
 export type DecodedAudio = {
   sampleRate: number;

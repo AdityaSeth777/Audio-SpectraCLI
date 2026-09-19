@@ -6,92 +6,92 @@ import { parseFrameLines } from "./lineParser";
  * Owns the live-visualization webview panel and the headless Python process
  * (`python -m Audio_SpectraCLI.headless`) that streams FFT frames to it as
  * newline-delimited JSON on stdout. This is what makes the extension
- * actually "live" — earlier versions only inserted a code snippet.
+ * actually "live" - earlier versions only inserted a code snippet.
  */
 export class LiveVisualizerPanel {
-    public static current: LiveVisualizerPanel | undefined;
+  public static current: LiveVisualizerPanel | undefined;
 
-    private readonly panel: vscode.WebviewPanel;
-    private process: ChildProcessWithoutNullStreams | undefined;
-    private stdoutBuffer = "";
+  private readonly panel: vscode.WebviewPanel;
+  private process: ChildProcessWithoutNullStreams | undefined;
+  private stdoutBuffer = "";
 
-    public static createOrShow(extensionUri: vscode.Uri): LiveVisualizerPanel {
-        if (LiveVisualizerPanel.current) {
-            LiveVisualizerPanel.current.panel.reveal();
-            return LiveVisualizerPanel.current;
-        }
-
-        const panel = vscode.window.createWebviewPanel(
-            "audioSpectraCliLiveVisualizer",
-            "Audio-SpectraCLI: Live Visualizer",
-            vscode.ViewColumn.Beside,
-            { enableScripts: true, retainContextWhenHidden: true },
-        );
-
-        LiveVisualizerPanel.current = new LiveVisualizerPanel(panel, extensionUri);
-        return LiveVisualizerPanel.current;
+  public static createOrShow(extensionUri: vscode.Uri): LiveVisualizerPanel {
+    if (LiveVisualizerPanel.current) {
+      LiveVisualizerPanel.current.panel.reveal();
+      return LiveVisualizerPanel.current;
     }
 
-    private constructor(panel: vscode.WebviewPanel, _extensionUri: vscode.Uri) {
-        this.panel = panel;
-        this.panel.webview.html = this.getHtml();
-        this.panel.onDidDispose(() => this.dispose());
-        this.startProcess();
+    const panel = vscode.window.createWebviewPanel(
+      "audioSpectraCliLiveVisualizer",
+      "Audio-SpectraCLI: Live Visualizer",
+      vscode.ViewColumn.Beside,
+      { enableScripts: true, retainContextWhenHidden: true },
+    );
+
+    LiveVisualizerPanel.current = new LiveVisualizerPanel(panel, extensionUri);
+    return LiveVisualizerPanel.current;
+  }
+
+  private constructor(panel: vscode.WebviewPanel, _extensionUri: vscode.Uri) {
+    this.panel = panel;
+    this.panel.webview.html = this.getHtml();
+    this.panel.onDidDispose(() => this.dispose());
+    this.startProcess();
+  }
+
+  private startProcess() {
+    const config = vscode.workspace.getConfiguration("audioSpectraCli");
+    const pythonPath = config.get<string>("pythonPath", "python3");
+    const fs = config.get<number>("sampleRate", 44100);
+    const blockSize = config.get<number>("blockSize", 4096);
+    const bars = config.get<number>("bars", 64);
+
+    this.process = spawn(pythonPath, [
+      "-m",
+      "Audio_SpectraCLI.headless",
+      "--fs",
+      String(fs),
+      "--block-size",
+      String(blockSize),
+      "--bars",
+      String(bars),
+    ]);
+
+    this.process.stdout.on("data", (chunk: Buffer) => this.handleStdout(chunk));
+
+    this.process.stderr.on("data", (chunk: Buffer) => {
+      this.panel.webview.postMessage({ type: "error", message: chunk.toString() });
+    });
+
+    this.process.on("error", (err) => {
+      this.panel.webview.postMessage({
+        type: "error",
+        message: `Failed to start "${pythonPath}": ${err.message}. Set "audioSpectraCli.pythonPath" if Python isn't on your PATH.`,
+      });
+    });
+
+    this.process.on("exit", (code) => {
+      this.panel.webview.postMessage({ type: "stopped", code });
+    });
+  }
+
+  private handleStdout(chunk: Buffer) {
+    const { frames, remainder } = parseFrameLines(this.stdoutBuffer, chunk.toString());
+    this.stdoutBuffer = remainder;
+    for (const frame of frames) {
+      this.panel.webview.postMessage({ type: "frame", frame });
     }
+  }
 
-    private startProcess() {
-        const config = vscode.workspace.getConfiguration("audioSpectraCli");
-        const pythonPath = config.get<string>("pythonPath", "python3");
-        const fs = config.get<number>("sampleRate", 44100);
-        const blockSize = config.get<number>("blockSize", 4096);
-        const bars = config.get<number>("bars", 64);
+  public dispose() {
+    this.process?.kill();
+    this.process = undefined;
+    LiveVisualizerPanel.current = undefined;
+    this.panel.dispose();
+  }
 
-        this.process = spawn(pythonPath, [
-            "-m",
-            "Audio_SpectraCLI.headless",
-            "--fs",
-            String(fs),
-            "--block-size",
-            String(blockSize),
-            "--bars",
-            String(bars),
-        ]);
-
-        this.process.stdout.on("data", (chunk: Buffer) => this.handleStdout(chunk));
-
-        this.process.stderr.on("data", (chunk: Buffer) => {
-            this.panel.webview.postMessage({ type: "error", message: chunk.toString() });
-        });
-
-        this.process.on("error", (err) => {
-            this.panel.webview.postMessage({
-                type: "error",
-                message: `Failed to start "${pythonPath}": ${err.message}. Set "audioSpectraCli.pythonPath" if Python isn't on your PATH.`,
-            });
-        });
-
-        this.process.on("exit", (code) => {
-            this.panel.webview.postMessage({ type: "stopped", code });
-        });
-    }
-
-    private handleStdout(chunk: Buffer) {
-        const { frames, remainder } = parseFrameLines(this.stdoutBuffer, chunk.toString());
-        this.stdoutBuffer = remainder;
-        for (const frame of frames) {
-            this.panel.webview.postMessage({ type: "frame", frame });
-        }
-    }
-
-    public dispose() {
-        this.process?.kill();
-        this.process = undefined;
-        LiveVisualizerPanel.current = undefined;
-        this.panel.dispose();
-    }
-
-    private getHtml(): string {
-        return /* html */ `<!DOCTYPE html>
+  private getHtml(): string {
+    return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -145,5 +145,5 @@ export class LiveVisualizerPanel {
   </script>
 </body>
 </html>`;
-    }
+  }
 }

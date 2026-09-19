@@ -23,7 +23,7 @@ export function parseFrameLines(
         try {
             frames.push(JSON.parse(line));
         } catch {
-            // Malformed/interleaved line (e.g. stray stderr text) — skip it.
+            // Malformed/interleaved line (e.g. stray stderr text) - skip it.
         }
     }
 

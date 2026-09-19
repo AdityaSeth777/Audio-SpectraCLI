@@ -1,6 +1,6 @@
 # Aditya Seth
 # Description: Headless, GUI-free entry point that streams spectrum frames as
-# newline-delimited JSON on stdout. No PyQt5/matplotlib dependency — built for
+# newline-delimited JSON on stdout. No PyQt5/matplotlib dependency - built for
 # non-interactive consumers (the VS Code extension's webview, other scripts).
 #
 # Each line is a JSON object: {"freqBins": [...], "spectrum": [...], "maxMagnitude": <float>}

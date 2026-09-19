@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 
 export type SubscriptionStatus = "free" | "active" | "canceled" | "past_due";
 
-/** Server-side entitlement check — reads the cached status synced by the Stripe webhook. */
+/** Server-side entitlement check - reads the cached status synced by the Stripe webhook. */
 export async function getEntitlement(): Promise<{
   userId: string | null;
   isPaid: boolean;

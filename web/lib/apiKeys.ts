@@ -7,7 +7,7 @@ export function generateApiKey(): string {
   return KEY_PREFIX + randomBytes(24).toString("hex");
 }
 
-/** Hashes a plaintext key for storage/lookup — we never store the plaintext. */
+/** Hashes a plaintext key for storage/lookup - we never store the plaintext. */
 export function hashApiKey(plaintextKey: string): string {
   return createHash("sha256").update(plaintextKey).digest("hex");
 }

@@ -9,7 +9,7 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-/** Saved slider/theme presets — a paid-tier feature. */
+/** Saved slider/theme presets - a paid-tier feature. */
 export const presets = pgTable("presets", {
   id: uuid("id").primaryKey().defaultRandom(),
   ownerId: text("owner_id")
@@ -22,7 +22,7 @@ export const presets = pgTable("presets", {
 
 /**
  * API keys for the server-side Data/Analysis API product (sub-project #4).
- * Only a SHA-256 hash of the key is stored — the plaintext key is shown to
+ * Only a SHA-256 hash of the key is stored - the plaintext key is shown to
  * the user exactly once, at creation time, like GitHub personal access tokens.
  */
 export const apiKeys = pgTable("api_keys", {
@@ -37,7 +37,7 @@ export const apiKeys = pgTable("api_keys", {
   revokedAt: timestamp("revoked_at"),
 });
 
-/** One row per billed API call — the source of truth for usage-based billing. */
+/** One row per billed API call - the source of truth for usage-based billing. */
 export const apiUsageEvents = pgTable("api_usage_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   apiKeyId: uuid("api_key_id")
