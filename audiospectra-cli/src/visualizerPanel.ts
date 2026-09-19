@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { ChildProcessWithoutNullStreams, spawn } from "child_process";
-import { parseFrameLines } from "./lineParser";
+import { SpectrumFrame, parseFrameLines } from "./lineParser";
 
 /**
  * Owns the live-visualization webview panel and the headless Python process
@@ -14,6 +14,8 @@ export class LiveVisualizerPanel {
   private readonly panel: vscode.WebviewPanel;
   private process: ChildProcessWithoutNullStreams | undefined;
   private stdoutBuffer = "";
+  private frameListeners: Array<(frame: SpectrumFrame) => void> = [];
+  private disposeListeners: Array<() => void> = [];
 
   public static createOrShow(extensionUri: vscode.Uri): LiveVisualizerPanel {
     if (LiveVisualizerPanel.current) {
@@ -34,9 +36,32 @@ export class LiveVisualizerPanel {
 
   private constructor(panel: vscode.WebviewPanel, _extensionUri: vscode.Uri) {
     this.panel = panel;
-    this.panel.webview.html = this.getHtml();
+    const config = vscode.workspace.getConfiguration("audioSpectraCli");
+    const barColor = config.get<string>("visualizerColor", "#3b82f6");
+    this.panel.webview.html = this.getHtml(barColor);
     this.panel.onDidDispose(() => this.dispose());
     this.startProcess();
+  }
+
+  /**
+   * Subscribes to every parsed frame as it arrives, in addition to the
+   * frame being posted into the webview. Used to drive UI that lives
+   * outside the webview, e.g. a status bar item. Returns a disposable to
+   * unsubscribe.
+   */
+  public onFrame(listener: (frame: SpectrumFrame) => void): vscode.Disposable {
+    this.frameListeners.push(listener);
+    return new vscode.Disposable(() => {
+      this.frameListeners = this.frameListeners.filter((l) => l !== listener);
+    });
+  }
+
+  /** Subscribes to this panel being disposed (stopped or closed). Returns a disposable to unsubscribe. */
+  public onDispose(listener: () => void): vscode.Disposable {
+    this.disposeListeners.push(listener);
+    return new vscode.Disposable(() => {
+      this.disposeListeners = this.disposeListeners.filter((l) => l !== listener);
+    });
   }
 
   private startProcess() {
@@ -80,6 +105,9 @@ export class LiveVisualizerPanel {
     this.stdoutBuffer = remainder;
     for (const frame of frames) {
       this.panel.webview.postMessage({ type: "frame", frame });
+      for (const listener of this.frameListeners) {
+        listener(frame);
+      }
     }
   }
 
@@ -88,9 +116,14 @@ export class LiveVisualizerPanel {
     this.process = undefined;
     LiveVisualizerPanel.current = undefined;
     this.panel.dispose();
+    for (const listener of this.disposeListeners) {
+      listener();
+    }
+    this.frameListeners = [];
+    this.disposeListeners = [];
   }
 
-  private getHtml(): string {
+  private getHtml(barColor: string): string {
     return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -107,6 +140,7 @@ export class LiveVisualizerPanel {
   <div id="error"></div>
   <canvas id="canvas"></canvas>
   <script>
+    const BAR_COLOR = ${JSON.stringify(barColor)};
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     const statusEl = document.getElementById('status');
@@ -138,7 +172,7 @@ export class LiveVisualizerPanel {
       const maxVal = Math.max(1e-6, ...spectrum);
       for (let i = 0; i < spectrum.length; i++) {
         const barHeight = (spectrum[i] / maxVal) * canvas.height;
-        ctx.fillStyle = '#3b82f6';
+        ctx.fillStyle = BAR_COLOR;
         ctx.fillRect(i * barWidth, canvas.height - barHeight, barWidth - 1, barHeight);
       }
     }
