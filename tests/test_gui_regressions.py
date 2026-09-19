@@ -254,13 +254,13 @@ def test_stopping_visualization_while_recording_saves_instead_of_discarding():
 
 def test_closing_the_window_while_recording_saves_instead_of_discarding():
     """Same bug as above, but via the window's close button/[X] (closeEvent)
-    instead of the Stop Visualization button — closing the window mid-
+    instead of the Stop Visualization button - closing the window mid-
     recording used to stop the engine without ever calling
     stop_recording()/offering to save, silently losing the buffered audio.
 
     QFileDialog.getSaveFileName genuinely hangs forever under the offscreen
     Qt platform used for tests (confirmed directly: a 5s timeout was hit)
-    since there's no real UI to dismiss it — so this must mock it, same as
+    since there's no real UI to dismiss it - so this must mock it, same as
     every other test that exercises _finish_recording.
     """
     window = AudioSpectrumVisualizer()

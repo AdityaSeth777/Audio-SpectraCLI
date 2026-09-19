@@ -13,7 +13,7 @@ type SavedPreset = {
 export function PresetsManager({ isPaid }: { isPaid: boolean }) {
   const [presets, setPresets] = useState<SavedPreset[]>([]);
   // Starts already-not-loading when the viewer isn't paid, since no fetch
-  // will ever run for them — avoids a synchronous setState(false) in the
+  // will ever run for them - avoids a synchronous setState(false) in the
   // effect body below, which react-hooks/set-state-in-effect flags (see
   // ApiKeysManager.tsx for the same "loading starts true, only ever set to
   // false" convention this follows).
@@ -57,7 +57,7 @@ export function PresetsManager({ isPaid }: { isPaid: boolean }) {
         <p className="text-sm text-white/60">Loading...</p>
       ) : presets.length === 0 ? (
         <p className="text-sm text-white/60">
-          No presets saved yet — save one from the{" "}
+          No presets saved yet - save one from the{" "}
           <a href="/visualize" className="underline">
             visualizer
           </a>

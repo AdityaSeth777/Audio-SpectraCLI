@@ -29,7 +29,7 @@
 
 ### The [&#39;main-old.py&#39;](../Audio_SpectraCLI/main-old.py), which is the code for the main file for v3.2, and the [&#39;test-old.py&#39;](../tests/test-old.py) case supporting that, is DEPRECATED.
 
-## Current Features (with respect to 4.1.0)
+## Current Features (as of v5.0.0)
 
 - Real-time visualization of Fast Fourier Transform (FFT) spectrum of audio input.
 - **Live in-editor visualization**: the extension spawns a headless Python
@@ -148,7 +148,7 @@ Follow these steps to use the Audio-SpectraCLI extension in Visual Studio Code:
 
 Enjoy using Audio-SpectraCLI in VS Code!
 
-Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v4.1.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/4.1.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
+Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v5.0.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/5.0.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
 
 ---
 
@@ -185,7 +185,7 @@ audio_visualizer.show()
 app.exec_()
 ```
 
-Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v4.1.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/4.1.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
+Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v5.0.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/5.0.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
 
 ---
 
@@ -223,7 +223,7 @@ audio_visualizer.show()
 app.exec_()
 ```
 
-Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v4.1.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/4.1.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
+Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v5.0.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/5.0.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
 
 ---
 
@@ -275,7 +275,7 @@ audio_visualizer.show()
 app.exec_()
 ```
 
-Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v4.1.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/4.1.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
+Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v5.0.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/5.0.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
 
 ---
 
@@ -331,7 +331,7 @@ audio_visualizer.show()
 app.exec_()
 ```
 
-Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v4.1.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/4.1.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
+Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v5.0.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/5.0.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
 
 </details>
 

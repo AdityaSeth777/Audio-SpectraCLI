@@ -2,7 +2,7 @@
   "name": "audio-spectracli-extension",
   "displayName": "Audio-SpectraCLI Extension",
   "description": "VS Code extension for integrating Audio-SpectraCLI.",
-  "version": "4.1.0",
+  "version": "5.0.0",
   "publisher": "AdityaSeth777",
   "repository": {
     "type": "git",
