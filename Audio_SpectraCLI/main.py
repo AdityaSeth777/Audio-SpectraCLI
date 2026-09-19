@@ -949,6 +949,7 @@ class AudioSpectrumVisualizer(QMainWindow):
 
     def closeEvent(self, event):
         if self.engine is not None:
+            self._finish_recording()  # otherwise closing the window mid-recording silently discards it, same as Stop used to
             self.engine.stop()
             self.engine = None
         if self.midi_sender is not None:

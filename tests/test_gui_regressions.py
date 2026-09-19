@@ -250,3 +250,37 @@ def test_stopping_visualization_while_recording_saves_instead_of_discarding():
             "the Record button must not be left reading 'Stop Recording' once the engine is gone"
         )
     window.close()
+
+
+def test_closing_the_window_while_recording_saves_instead_of_discarding():
+    """Same bug as above, but via the window's close button/[X] (closeEvent)
+    instead of the Stop Visualization button — closing the window mid-
+    recording used to stop the engine without ever calling
+    stop_recording()/offering to save, silently losing the buffered audio.
+
+    QFileDialog.getSaveFileName genuinely hangs forever under the offscreen
+    Qt platform used for tests (confirmed directly: a 5s timeout was hit)
+    since there's no real UI to dismiss it — so this must mock it, same as
+    every other test that exercises _finish_recording.
+    """
+    window = AudioSpectrumVisualizer()
+    with patch("Audio_SpectraCLI.engine.sd.InputStream", return_value=MagicMock()):
+        window.toggle_visualization()  # start
+        window.toggle_recording()  # start recording
+        assert window.engine.recording is True
+
+        t = np.arange(window.block_size) / window.fs
+        block = np.sin(2 * np.pi * 440 * t).astype(np.float32).reshape(-1, 1)
+        window.engine.audio_queue.put(block)
+        import time
+
+        deadline = time.time() + 2
+        while len(window.engine._recorded_chunks) == 0 and time.time() < deadline:
+            time.sleep(0.01)
+        assert len(window.engine._recorded_chunks) > 0
+
+        with patch("Audio_SpectraCLI.main.QFileDialog.getSaveFileName", return_value=("", "")) as mock_dialog:
+            window.close()  # must not raise, must not hang
+            mock_dialog.assert_called_once()  # confirms _finish_recording actually ran, not skipped
+
+        assert window.engine is None

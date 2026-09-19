@@ -1,5 +1,6 @@
 import { getEntitlement } from "@/lib/entitlement";
 import { ApiKeysManager } from "@/components/ApiKeysManager";
+import { PresetsManager } from "@/components/PresetsManager";
 
 export default async function DashboardPage() {
   const { isPaid, status } = await getEntitlement();
@@ -24,6 +25,10 @@ export default async function DashboardPage() {
       <hr className="border-white/10" />
 
       <ApiKeysManager isPaid={isPaid} />
+
+      <hr className="border-white/10" />
+
+      <PresetsManager isPaid={isPaid} />
     </div>
   );
 }

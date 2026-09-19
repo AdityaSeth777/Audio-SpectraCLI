@@ -19,7 +19,9 @@ export function parseFrameLines(
 
     const frames: SpectrumFrame[] = [];
     for (const line of lines) {
-        if (!line.trim()) continue;
+        if (!line.trim()) {
+            continue;
+        }
         try {
             frames.push(JSON.parse(line));
         } catch {
