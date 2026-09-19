@@ -75,6 +75,64 @@ def downsample_max_pool(values, num_bins):
     )
 
 
+def compute_rms(samples):
+    """Root-mean-square level of a raw (pre-window, pre-FFT) audio block.
+
+    Values sit in roughly [0, 1] for well-behaved input (samples themselves
+    are expected in [-1, 1]), giving a loudness readout independent of the
+    FFT/smoothing path.
+    """
+    samples = np.asarray(samples)
+    if samples.size == 0:
+        return 0.0
+    return float(np.sqrt(np.mean(np.square(samples))))
+
+
+def is_clipping(samples, threshold=0.98):
+    """True if any sample in the block is at/near full scale (|x| >= threshold).
+
+    A raw input signal genuinely hitting the ADC's ceiling shows up this
+    way; catching it here (pre-window, pre-FFT) is the only reliable place,
+    since windowing/FFT/smoothing all blur an isolated saturated sample.
+    """
+    samples = np.asarray(samples)
+    if samples.size == 0:
+        return False
+    return bool(np.any(np.abs(samples) >= threshold))
+
+
+_SPARKLINE_BLOCKS = " ▁▂▃▄▅▆▇█"
+
+
+def render_sparkline(values, low=None, high=None):
+    """Renders a sequence of numbers as a one-line Unicode block sparkline.
+
+    `low`/`high` fix the normalization range (e.g. the visualizer's current
+    frequency range); omitted, they default to the min/max of `values`
+    itself. Returns "" for an empty sequence, and a flat middle-height line
+    if every value is equal (avoids a division by zero).
+    """
+    values = list(values)
+    if not values:
+        return ""
+
+    low = min(values) if low is None else low
+    high = max(values) if high is None else high
+    span = high - low
+
+    if span <= 0:
+        mid_block = _SPARKLINE_BLOCKS[len(_SPARKLINE_BLOCKS) // 2]
+        return mid_block * len(values)
+
+    max_index = len(_SPARKLINE_BLOCKS) - 1
+    chars = []
+    for value in values:
+        normalized = (value - low) / span
+        normalized = min(1.0, max(0.0, normalized))
+        chars.append(_SPARKLINE_BLOCKS[round(normalized * max_index)])
+    return "".join(chars)
+
+
 class BeatDetector:
     """Lightweight onset-based BPM estimator.
 
@@ -132,6 +190,9 @@ __all__ = [
     "magnitude_to_db",
     "nearest_musical_note",
     "downsample_max_pool",
+    "compute_rms",
+    "is_clipping",
+    "render_sparkline",
     "BeatDetector",
     "WINDOW_FUNCTIONS",
 ]

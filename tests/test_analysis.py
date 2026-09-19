@@ -1,11 +1,15 @@
 import numpy as np
+import pytest
 
 from Audio_SpectraCLI.analysis import (
     BeatDetector,
     apply_window,
+    compute_rms,
     downsample_max_pool,
+    is_clipping,
     magnitude_to_db,
     nearest_musical_note,
+    render_sparkline,
 )
 
 
@@ -90,6 +94,55 @@ def test_downsample_max_pool_reduces_via_max():
     result = downsample_max_pool(values, 3)
     assert len(result) == 3
     assert result[-1] == 9
+
+
+def test_compute_rms_known_value():
+    # A constant-amplitude square wave at 0.5 has RMS exactly 0.5.
+    samples = np.array([0.5, -0.5, 0.5, -0.5])
+    assert compute_rms(samples) == pytest.approx(0.5)
+
+
+def test_compute_rms_empty_is_zero():
+    assert compute_rms(np.array([])) == 0.0
+
+
+def test_is_clipping_detects_full_scale_sample():
+    assert is_clipping(np.array([0.1, 0.99, -0.2])) is True
+    assert is_clipping(np.array([0.1, 0.5, -0.2])) is False
+
+
+def test_is_clipping_respects_custom_threshold():
+    samples = np.array([0.5])
+    assert is_clipping(samples, threshold=0.4) is True
+    assert is_clipping(samples, threshold=0.6) is False
+
+
+def test_is_clipping_empty_is_false():
+    assert is_clipping(np.array([])) is False
+
+
+def test_render_sparkline_empty_is_empty_string():
+    assert render_sparkline([]) == ""
+
+
+def test_render_sparkline_flat_input_is_mid_height():
+    line = render_sparkline([5, 5, 5])
+    assert len(line) == 3
+    assert len(set(line)) == 1  # every char identical
+
+
+def test_render_sparkline_maps_low_and_high_to_extreme_blocks():
+    line = render_sparkline([0, 50, 100], low=0, high=100)
+    assert line[0] == " "  # lowest block
+    assert line[-1] == "█"  # tallest block
+
+
+def test_render_sparkline_clamps_values_outside_low_high():
+    # A value below `low` or above `high` must not error or overflow the
+    # block index - it should just clamp to the nearest extreme.
+    line = render_sparkline([-1000, 1000], low=0, high=100)
+    assert line[0] == " "
+    assert line[-1] == "█"
 
 
 def test_beat_detector_reset_clears_state():

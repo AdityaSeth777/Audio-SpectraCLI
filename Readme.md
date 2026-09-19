@@ -13,7 +13,7 @@
 
 </div>
 
-## Audio Spectrum Visualization is a Python project that visualizes real-time audio input as a spectrum using Fast Fourier Transform (FFT). It provides an interactive and dynamic interface for users to start the visualization and exit the program.
+## Audio-SpectraCLI visualizes real-time audio input as a spectrum using the Fast Fourier Transform (FFT) - as a native Python/PyQt5 desktop app, a live VS Code extension, and a hosted web app with an API - all three built on the same FFT/DSP approach.
 
  <p>
 
@@ -32,138 +32,367 @@
 
 <a href="https://www.producthunt.com/posts/audio-spectracli?utm_source=badge-featured&utm_medium=badge&utm_souce=badge-audio&#0045;spectracli" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=458166&theme=light" alt="Audio&#0045;SpectraCLI - Visualizing&#0032;real&#0045;time&#0032;audio&#0032;input&#0032;as&#0032;a&#0032;spectrum&#0032;using&#0032;FFT | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
 
-### Notable point : From v4.0, I have implemented a whole new code using PyQt5, which you will find evident here in the new main default code - [&#39;main.py&#39;](./Audio_SpectraCLI/main.py) and the [&#39;test.py&#39;](./tests/test.py) case supporting that.
+---
 
-### The [&#39;main-old.py&#39;](./Audio_SpectraCLI/main-old.py), which is the code for the main file for v3.2, and the [&#39;test-old.py&#39;](./tests/test-old.py) case supporting that, is DEPRECATED.
+## Table of Contents
 
-## Current Features (with respect to 4.1.0)
+- [What's New in v5.0.0](#whats-new-in-v500)
+- [Three Products, One Engine](#three-products-one-engine)
+- [Architecture](#architecture)
+- [How Data Flows](#how-data-flows)
+  - [1. Native GUI: capture → FFT → render → (optional) MIDI](#1-native-gui-capture--fft--render--optional-midi)
+  - [2. Headless CLI → VS Code Extension](#2-headless-cli--vs-code-extension)
+  - [3. Web Visualizer (client-only)](#3-web-visualizer-client-only)
+  - [4. Web Data/Analysis API](#4-web-dataanalysis-api)
+- [What Data Is Stored, and Where](#what-data-is-stored-and-where)
+  - [Local files (Python core + VS Code extension)](#local-files-python-core--vs-code-extension)
+  - [Browser storage (web visualizer)](#browser-storage-web-visualizer)
+  - [Database (web SaaS backend)](#database-web-saas-backend)
+- [Requirements](#requirements)
+- [How to Run](#how-to-run)
+  - [Native GUI](#native-gui)
+  - [VS Code Extension](#vs-code-extension)
+  - [Web App](#web-app)
+- [Installation Methods (Native GUI)](#installation-methods--now-extension-available)
+- [Current Features (as of v5.0.0)](#current-features-as-of-v500)
+- [Packaging / Repo Layout](#packaging)
+- [Testing](#testing)
+- [Upcoming Features](#upcoming-features)
+- [Contributing](#for-contributing)
+- [License](#license)
+- [Contact](#where-to-contact-)
 
-- Real-time visualization of Fast Fourier Transform (FFT) spectrum of audio input.
-- Live VS Code Extension support - the extension now spawns a real headless
-  audio process and streams the spectrum into a live webview canvas (see
-  [Web & Extension Additions](#web--extension-additions) below).
-- Support for adjusting parameters such as duration, sampling rate, and block size.
-- Seamless integration with SoundDevice for audio input capture.
-- Customizable Frequency Range: Allow users to specify the frequency range to display in the spectrum.
-- Color Customization: Provide options for users to customize the colors used in the spectrum visualization.
-- Added PyQt5 modules and a Gaussian filter that enables user input for Duration (in seconds), Sampling Rate (in Hz), Block Size, and also smoothens the output.
-- Might need to keep in mind that the Gaussian filter is too strong and it won't recognise any noise and display it's spectra. Only actual input through mic such as conversations and music are displayed which can be categorised as real inputs or audio, and of course in real time.
-- Much more dynamic and user-controlled interface.
-- A headless, GUI-free streaming mode (`python -m Audio_SpectraCLI.headless`)
-  that emits spectrum frames as JSON lines - the same audio/FFT engine that
-  powers the GUI, usable from scripts or other tools without PyQt5 installed.
-- The GUI redraws at a fixed ~30fps from the latest audio frame rather than
-  redrawing on every single incoming audio block. Real microphone input can
-  deliver far more blocks per second than a matplotlib redraw can keep up
-  with, which previously could back up the GUI's event queue and, on some
-  PyQt5/sip builds, crash the whole app outright after sustained use. Any
-  error during a redraw is now also caught and logged instead of being
-  allowed to propagate and abort the process.
-- The GUI's canvas now resizes properly on window maximize (no clipped axis
-  labels), and every slider (Duration/Sampling Rate/Block Size/Noise
-  Threshold) has a paired numeric spinbox next to it - the exact value is
-  always visible and directly typeable, not just draggable.
-- Five view modes: **Line** (the original), **Bars** (equalizer-style),
-  **Waterfall** (scrolling history spectrogram), **Circular** (radial
-  display), and **Tuner** (big musical-note readout for the dominant
-  frequency, e.g. "A4 · 441.4 Hz · +6 cents").
-- **dB (logarithmic) scale** toggle, **windowing function** choice
-  (None/Hann/Hamming/Blackman) to reduce spectral leakage, an adjustable
-  **noise threshold** and **Gaussian smoothing strength** (previously
-  hardcoded), and **stereo channel selection** (Mono mix/Left/Right -
-  previously always forced mono).
-- **Peak-hold markers** (Line/Bars views) - a line that holds at the recent
-  peak and decays, like a hardware audio meter.
-- **Live BPM estimation** and a **dominant-note readout**, always shown
-  above the canvas regardless of view mode. The BPM estimate is a simple
-  onset/energy heuristic, not lab-grade beat tracking - expect it to be
-  unstable on non-rhythmic input, that's inherent to how simple it is.
-- **Export** the current view as PNG (also bound to Ctrl+S) or the current
-  frame's data as CSV, and **record microphone input to a WAV file**.
-- **Save/load setting presets** to a local JSON file.
-- **In-GUI microphone selection** (previously only choosable via the
-  `launch.py` interactive launcher at startup) - swap devices from a
-  dropdown before clicking Start; changing it while running is disabled,
-  the same way sampling rate/block size are, since a live stream can't be
-  reconfigured without reopening it.
-- **MIDI-out**: converts the dominant frequency to a MIDI note and sends it
-  to a virtual MIDI port, turning the visualizer into a simple audio-to-MIDI
-  tool. `mido`/`python-rtmidi` are core dependencies (installed
-  automatically by `requirements.txt`/`pip install Audio-SpectraCLI`/the
-  interactive launcher's `.venv` setup) - but the checkbox still degrades
-  gracefully with a clear explanation instead of crashing if they're somehow
-  missing or fail to build in a given environment. Windows has no native
-  virtual MIDI port support without a third-party loopback driver like
-  loopMIDI; the same message covers that case too. A stuck note is released
-  automatically both when input goes quiet for 0.5s and when you click Stop.
+---
 
-## Packaging
+## What's New in v5.0.0
 
+This release adds a full CRUD-style feature layer on top of the existing engine, across all three products, **without changing the existing engine, protocols, or public API** - every prior feature keeps working exactly as before.
+
+**Native GUI / core engine:**
+
+- Named preset manager (save/load/rename/delete), seeded with 3 hardware-tuned builtin presets (Balanced, Low Power for constrained machines, High Detail).
+- RMS meter, clip warning, and sustained-silence warning, computed from every captured audio block.
+- Peak-frequency history sparkline.
+- A/B settings compare (two in-memory slots).
+- Local, append-only session-history log (device, duration, avg BPM), with a viewer + clear action.
+- Recent Exports/Recordings manager (tracks every PNG/CSV/WAV write, with open-folder and delete actions).
+- Named device profiles (matched by device *name*, not numeric index - portable across machines).
+
+**VS Code extension:**
+
+- Live status bar item (dominant frequency/peak magnitude while visualizing).
+- `Audio-SpectraCLI: Save Current Frame as Preset` command, interoperable with the GUI's own preset store.
+- Configurable visualizer bar color.
+
+**Web visualizer:**
+
+- `localStorage`-backed local presets - no sign-in required.
+- Live session-stats panel (RMS/clip/silence + frequency sparkline), reusing data already being read each frame.
+- Shareable visualizer configs via URL query parameters + a "Copy Share Link" button.
+
+**Security & hygiene:**
+
+- Bumped `@vscode/vsce` and `vitest` toolchains, resolving every then-open Dependabot alert reachable through real dependency resolution.
+- Two bugs found and fixed via an actual end-to-end pass against real hardware (not just mocks) - see [CHANGELOG.md](./CHANGELOG.md) for specifics.
+
+---
+
+## Three Products, One Engine
+
+| Product | Where | What it is |
+|---|---|---|
+| **Native GUI** | `Audio_SpectraCLI/main.py` | The original PyQt5 desktop app - 5 view modes, MIDI-out, exports, presets, device profiles, session history. |
+| **Headless CLI** | `Audio_SpectraCLI/headless.py` | GUI-free, JSON-lines-over-stdout streaming mode. Same engine, no PyQt5 needed. |
+| **VS Code Extension** | `audiospectra-cli/` | Spawns the headless CLI and renders it live inside a VS Code webview + status bar. |
+| **Web App** | `web/` | A hosted, browser-only visualizer (Next.js) with accounts, billing, and a server-side Analysis API. Its DSP is a *parallel* TypeScript implementation, not shared code with the Python core. |
+
+All four share the same conceptual FFT/windowing/downsampling approach; only the native GUI, headless CLI, and VS Code extension share actual *code* (`engine.py`/`analysis.py`) and *on-disk data* (presets, in `~/.audiospectra_cli/`).
+
+## Architecture
+
+```mermaid
+graph TB
+    subgraph Hardware
+        MIC[Microphone]
+        MIDIPORT[Virtual MIDI Port]
+    end
+
+    subgraph "Python Core (Audio_SpectraCLI/)"
+        ENGINE["engine.py<br/>AudioSpectrumEngine<br/>(capture + FFT + smoothing)"]
+        ANALYSIS["analysis.py<br/>(windowing, dB, notes, BPM,<br/>RMS, clipping, sparkline)"]
+        MAIN["main.py<br/>PyQt5 GUI"]
+        HEADLESS["headless.py<br/>JSON-lines CLI"]
+        MIDIOUT["midi_out.py"]
+        PRESETS["presets.py"]
+        SESSIONS["session_history.py"]
+        EXPORTS["export_manifest.py"]
+        DEVICES["device_profiles.py"]
+    end
+
+    subgraph "VS Code Extension (audiospectra-cli/)"
+        EXT["extension.ts<br/>commands + status bar"]
+        PANEL["visualizerPanel.ts<br/>spawns headless.py,<br/>owns the webview"]
+        PARSER["lineParser.ts<br/>parses JSON lines"]
+    end
+
+    subgraph "Web App (web/, Next.js)"
+        VIZ["Visualizer.tsx<br/>AnalyserNode + Canvas FFT"]
+        API["/api/v1/analyze<br/>server-side Analysis API"]
+        DB[("Postgres (Neon)<br/>users / presets / apiKeys")]
+        LS[("Browser localStorage<br/>local presets")]
+    end
+
+    MIC --> ENGINE
+    ENGINE --> ANALYSIS
+    ANALYSIS --> MAIN
+    ANALYSIS --> HEADLESS
+    MAIN --> MIDIOUT --> MIDIPORT
+    MAIN <--> PRESETS
+    MAIN <--> SESSIONS
+    MAIN <--> EXPORTS
+    MAIN <--> DEVICES
+
+    HEADLESS -- "stdout: JSON lines" --> PANEL
+    PANEL --> PARSER --> EXT
+    PANEL -.->|"reads/writes<br/>~/.audiospectra_cli/presets/"| PRESETS
+
+    MIC -.->|"getUserMedia<br/>(browser)"| VIZ
+    VIZ <--> LS
+    VIZ -.->|"WAV/MP3/AAC upload"| API
+    API <--> DB
 ```
-Audio-SpectraCLI/
 
-├── .gitignore
-├── CODE_OF_CONDUCT.md
-├── Contributing.md
-├── Dockerfile
-├── LICENSE
-├── Readme.md
-├── requirements.txt
-├── setup.cfg
-├── setup.py
-├── launch.py           # interactive cross-platform launcher (see Instant Launch)
-├── run.sh              # canonical launcher entry point for macOS/Linux terminals: ./run.sh
-├── run.command         # thin double-click wrapper around run.sh, for macOS/Linux Finder
-├── run.bat             # double-click/terminal entry point for Windows
-├── .github/
-│   └── workflows/
-│       ├── docker-publish.yml
-│       ├── label.yml
-│       └── python-publish.yml
-├── Audio_SpectraCLI/
-│   ├── main-old.py
-│   ├── main.py           # PyQt5 GUI, now built on engine.py
-│   ├── engine.py         # Qt-independent capture/FFT/smoothing core, shared by main.py and headless.py
-│   ├── analysis.py       # pure DSP helpers: windowing, dB conversion, note naming, BPM estimation
-│   ├── midi_out.py       # optional MIDI-out (gracefully degrades if python-rtmidi isn't installed)
-│   ├── headless.py       # `python -m Audio_SpectraCLI.headless` JSON-streaming CLI mode
-│   └── __init__.py
-├── tests/
-│   ├── test-old.py
-│   ├── test.py
-│   ├── test_engine.py
-│   ├── test_headless.py
-│   ├── test_analysis.py
-│   ├── test_midi_out.py
-│   ├── test_gui_smoke.py
-│   ├── test_gui_stress.py
-│   ├── test_gui_controls.py
-│   └── test_gui_features.py
-├── audiospectra-cli/         # VS Code extension (now with a real live webview)
-│   ├── assets
-│   ├── dist
-│   ├── src/
-│   │   ├── test
-│   │   ├── extension.test.ts
-│   │   ├── extension.ts
-│   │   ├── visualizerPanel.ts
-│   │   ├── lineParser.ts
-│   │   └── lineParser.test.ts
-│   ├── audio-spectracli-extension-v.vsix
-│   ├── CHANGELOG.md
-│   ├── esbuild.js
-│   ├── eslint.config.mjs
-│   ├── package.json
-│   ├── package-lock.json
-│   ├── README.md
-│   ├── sample.py
-│   └── tsconfig.json
-└── web/                       # Next.js SaaS app: hosted visualizer, accounts/billing, analysis API
-    ├── app/
-    ├── components/
-    ├── lib/
-    └── README.md
+## How Data Flows
+
+### 1. Native GUI: capture → FFT → render → (optional) MIDI
+
+```mermaid
+sequenceDiagram
+    participant Mic as Microphone
+    participant Stream as sounddevice.InputStream
+    participant Worker as engine._process_audio (thread)
+    participant GUI as main.py (Qt main thread)
+    participant Midi as midi_out.MidiNoteSender
+
+    Mic->>Stream: raw audio blocks
+    Stream->>Worker: queued via audio_queue
+    Worker->>Worker: select channel, on_audio_block(samples)<br/>(RMS, clipping, silence streak)
+    Worker->>Worker: window → rfft → smooth
+    alt max_magnitude > noise_threshold
+        Worker->>GUI: on_spectrum(freq_bins, spectrum, max_magnitude)
+        Note over GUI: stashed as "latest frame",<br/>not drawn immediately
+    end
+    loop every 33ms (QTimer)
+        GUI->>GUI: render latest stashed frame<br/>(view mode, peak-hold, stats row, sparkline)
+        GUI->>Midi: send_note_for_frequency(dominant note)
+    end
+    GUI->>GUI: on Stop/close: log session_history,<br/>flush pending recording/manifest entries
 ```
+
+### 2. Headless CLI → VS Code Extension
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Ext as extension.ts
+    participant Panel as visualizerPanel.ts
+    participant Py as python -m Audio_SpectraCLI.headless
+    participant Web as Webview (canvas)
+    participant Bar as Status Bar
+
+    User->>Ext: "Start Live Visualization"
+    Ext->>Panel: createOrShow()
+    Panel->>Py: spawn (fs, blockSize, bars from settings)
+    loop while running
+        Py->>Panel: stdout line: {freqBins, spectrum, maxMagnitude}
+        Panel->>Panel: parseFrameLines (buffers partial lines)
+        Panel->>Web: postMessage({type:"frame", frame})
+        Panel->>Bar: onFrame → computeDominantFrequency
+    end
+    User->>Ext: "Save Current Frame as Preset"
+    Ext->>Ext: write ~/.audiospectra_cli/presets/<name>.json
+    Note over Ext,Py: same file the Python GUI's<br/>preset manager reads
+    User->>Ext: "Stop Live Visualization"
+    Ext->>Py: kill process
+    Ext->>Bar: dispose
+```
+
+### 3. Web Visualizer (client-only)
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Browser
+    participant Analyser as Web Audio AnalyserNode
+    participant Canvas
+    participant LS as localStorage
+
+    User->>Browser: grants microphone permission
+    Browser->>Analyser: getUserMedia stream
+    loop every animation frame
+        Analyser->>Canvas: getFloatFrequencyData / getFloatTimeDomainData
+        Canvas->>Canvas: draw bars/waterfall/tuner + stats sparkline
+        Canvas->>Canvas: compute RMS/clip/silence (throttled UI update)
+    end
+    User->>LS: Save As local preset
+    User->>Browser: Copy Share Link
+    Browser->>Browser: encode settings into URL query string
+    Note over Browser,Analyser: audio data never leaves the browser -<br/>no server involved in this flow
+```
+
+### 4. Web Data/Analysis API
+
+```mermaid
+sequenceDiagram
+    participant Client as Third-party client
+    participant API as /api/v1/analyze
+    participant Auth as apiAuth.ts
+    participant RL as rateLimit.ts (Upstash or in-memory)
+    participant Decode as transcode.ts / wav.ts
+    participant DSP as fft.ts / dsp.ts
+    participant DB as Postgres
+
+    Client->>API: POST (WAV/MP3/AAC or {samples, sampleRate})
+    API->>Auth: authenticateApiRequest(bearer key)
+    Auth->>DB: look up key hash, subscription status
+    Auth->>RL: checkRateLimit(key)
+    alt authorized and within limit
+        API->>Decode: parse/transcode to mono PCM
+        Decode->>DSP: FFT (first 8192 samples)
+        DSP-->>API: spectrumDb, dominantFrequencyHz, ...
+        API->>DB: record apiUsageEvents row
+        API-->>Client: 200 JSON response
+    else unauthorized / over quota / not on paid plan
+        API-->>Client: 401 / 402 / 429
+    end
+```
+
+## What Data Is Stored, and Where
+
+### Local files (Python core + VS Code extension)
+
+All under `~/.audiospectra_cli/` (or `$AUDIOSPECTRA_CLI_HOME` if set, e.g. in tests) - nothing here ever leaves the machine:
+
+```mermaid
+graph LR
+    HOME["~/.audiospectra_cli/"]
+    HOME --> P["presets/<name>.json<br/>{duration, fs, block_size,<br/>frequency_range, color, window_type,<br/>noise_threshold, channel_mode, db_scale,<br/>view_mode, peak_hold_enabled,<br/>smoothing_sigma, smoothing_enabled}"]
+    HOME --> DP["device_profiles/<name>.json<br/>{device_name, fs, channel_mode}"]
+    HOME --> SH["session_history.jsonl<br/>one line per session:<br/>{ended_at, duration_seconds,<br/>device_name, avg_bpm}"]
+    HOME --> EM["export_manifest.jsonl<br/>one line per export:<br/>{exported_at, type, path}"]
+```
+
+Read/written by both the native GUI (`main.py`) and, for `presets/`, the VS Code extension - that's the one directory intentionally shared across products, so a preset saved in one is loadable from the other.
+
+### Browser storage (web visualizer)
+
+`localStorage` key `audiospectra:local-presets` on the visitor's own browser, per-origin, never sent to a server:
+
+```json
+[{ "id": "...", "name": "My Setup", "settings": { "...": "visualizer settings" }, "createdAt": "..." }]
+```
+
+### Database (web SaaS backend)
+
+Postgres (Neon), via `drizzle-orm` - only exists once you configure `DATABASE_URL` (see [Requirements](#requirements)):
+
+```mermaid
+erDiagram
+    USERS ||--o{ PRESETS : owns
+    USERS ||--o{ API_KEYS : owns
+    API_KEYS ||--o{ API_USAGE_EVENTS : logs
+
+    USERS {
+        text id PK "Clerk user id"
+        text stripeCustomerId
+        text subscriptionStatus "free/active/canceled/past_due"
+    }
+    PRESETS {
+        uuid id PK
+        text ownerId FK
+        text name
+        jsonb settings
+    }
+    API_KEYS {
+        uuid id PK
+        text ownerId FK
+        text name
+        text keyHash "SHA-256, plaintext shown once"
+        timestamp lastUsedAt
+        timestamp revokedAt
+    }
+    API_USAGE_EVENTS {
+        uuid id PK
+        uuid apiKeyId FK
+        text endpoint
+        timestamp createdAt
+    }
+```
+
+## Requirements
+
+| Product | Requires | Notes |
+|---|---|---|
+| **Native GUI / headless CLI** | Python 3.9+, `numpy`, `scipy`, `matplotlib`, `sounddevice`, `pyqt5`, `mido`, `python-rtmidi` (see [requirements.txt](./requirements.txt)) | No env vars, no network, no account. `launch.py` sets all of this up in a local `.venv` automatically. |
+| **VS Code Extension** | VS Code `^1.70.0`, Node (for building from source), and the Python package above importable as `python3 -m Audio_SpectraCLI.headless` | No env vars. Configurable via `audioSpectraCli.pythonPath` if `python3` isn't on `PATH`. |
+| **Web App - visualizer only** | Node 20+, `npm install` | No env vars needed at all - the visualizer, local presets, session stats, and share links are 100% client-side. |
+| **Web App - full SaaS (accounts, billing, Analysis API)** | The above, plus real credentials for: Clerk (auth), Stripe (billing), Neon/Postgres (`DATABASE_URL`), optionally Upstash Redis (distributed rate limiting) | See [web/.env.example](./web/.env.example) and [web/README.md](./web/README.md) for the full list and what each one gates. |
+
+## How to Run
+
+### Native GUI
+
+The fastest path is the interactive launcher - see [Installation Methods](#installation-methods--now-extension-available) below for full detail. Short version:
+
+```sh
+git clone https://github.com/AdityaSeth777/Audio-SpectraCLI.git
+cd Audio-SpectraCLI
+./run.sh        # macOS/Linux - or double-click run.command / run.bat on Windows
+```
+
+Or manually:
+
+```sh
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python3 -m Audio_SpectraCLI.main
+```
+
+Headless/JSON-streaming mode (no GUI dependencies needed beyond `numpy`/`scipy`/`sounddevice`):
+
+```sh
+python3 -m Audio_SpectraCLI.headless --fs 44100 --block-size 4096 --bars 32
+```
+
+### VS Code Extension
+
+From the Marketplace: search "Audio-SpectraCLI" in the Extensions sidebar and install - see [Installation & Usage (Marketplace)](#installation--usage-using-vscode-extensions---marketplace) below. From source:
+
+```sh
+cd audiospectra-cli
+npm install
+npm run compile
+# then F5 in VS Code to launch an Extension Development Host
+```
+
+### Web App
+
+```sh
+cd web
+npm install
+cp .env.example .env.local   # fill in what you have; the visualizer works with none of it set
+npm run dev                  # http://localhost:3000
+```
+
+Run the test suites:
+
+```sh
+npm run lint
+npx tsc --noEmit
+npx vitest run
+```
+
+`/visualize` works immediately with zero env vars. `/dashboard`, sign-in/up, and the Analysis API need Clerk/Stripe/`DATABASE_URL` configured - see [web/README.md](./web/README.md).
 
 ## Installation Methods : (Now Extension available)
 
@@ -266,6 +495,8 @@ Follow these steps to use the Audio-SpectraCLI extension in Visual Studio Code:
    - **View Extension Status**: Displays the current status of Audio-SpectraCLI.
      - Run the command `Audio-SpectraCLI: View Status` from the Command Palette.
      - You’ll see a notification indicating that Audio-SpectraCLI is ready to use.
+   - **Start/Stop Live Visualization**: Opens/closes a live webview panel streaming the real spectrum via the headless Python process, plus a status bar readout of the dominant frequency.
+   - **Save Current Frame as Preset**: Saves the extension's current settings as a named preset, readable by the native GUI's own preset manager.
 
 5. **Verify the Extension**
    - Ensure that the Audio-SpectraCLI commands work as expected by following the steps above.
@@ -273,12 +504,13 @@ Follow these steps to use the Audio-SpectraCLI extension in Visual Studio Code:
 
 6. **Customize as Needed**
    - You can modify the inserted code or use the extension as a reference for developing your own custom scripts with Audio-SpectraCLI.
+   - `audioSpectraCli.pythonPath`, `sampleRate`, `blockSize`, `bars`, and `visualizerColor` are all configurable in VS Code settings.
 
-> **Note**: If you encounter issues, check the extension's [README](./README.md) or reach out to contact@adityaseth.in support for troubleshooting.
+> **Note**: If you encounter issues, check the extension's [README](./audiospectra-cli/README.md) or reach out to contact@adityaseth.in support for troubleshooting.
 
 Enjoy using Audio-SpectraCLI in VS Code!
 
-Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v4.1.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/4.1.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
+Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v5.0.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/5.0.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
 
 ---
 
@@ -315,7 +547,7 @@ audio_visualizer.show()
 app.exec_()
 ```
 
-Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v4.1.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/4.1.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
+Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v5.0.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/5.0.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
 
 ---
 
@@ -353,7 +585,7 @@ audio_visualizer.show()
 app.exec_()
 ```
 
-Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v4.1.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/4.1.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
+Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v5.0.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/5.0.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
 
 ---
 
@@ -405,7 +637,7 @@ audio_visualizer.show()
 app.exec_()
 ```
 
-Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v4.1.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/4.1.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
+Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v5.0.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/5.0.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
 
 ---
 
@@ -461,11 +693,175 @@ audio_visualizer.show()
 app.exec_()
 ```
 
-Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v4.1.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/4.1.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
+Once you have activated the audio_visualizer instance, feel free to use it wherever in the program. It consists of several parameters (which gives more control to the user), so make sure to configure and add those before using it in your code. Also, the user can modify (wrt [v5.0.0](https://github.com/AdityaSeth777/Audio-SpectraCLI/tree/5.0.0)) the Duration (in seconds), Sampling Rate (in Hz), and Block Size.
 
 </details>
 
 ---
+
+## Current Features (as of v5.0.0)
+
+- Real-time visualization of Fast Fourier Transform (FFT) spectrum of audio input.
+- Live VS Code Extension support - the extension spawns a real headless
+  audio process and streams the spectrum into a live webview canvas, with
+  a live status bar readout (see [Web & Extension Additions](#web--extension-additions) below).
+- Support for adjusting parameters such as duration, sampling rate, and block size.
+- Seamless integration with SoundDevice for audio input capture.
+- Customizable Frequency Range: Allow users to specify the frequency range to display in the spectrum.
+- Color Customization: Provide options for users to customize the colors used in the spectrum visualization.
+- Added PyQt5 modules and a Gaussian filter that enables user input for Duration (in seconds), Sampling Rate (in Hz), Block Size, and also smoothens the output.
+- Might need to keep in mind that the Gaussian filter is too strong and it won't recognise any noise and display it's spectra. Only actual input through mic such as conversations and music are displayed which can be categorised as real inputs or audio, and of course in real time.
+- Much more dynamic and user-controlled interface.
+- A headless, GUI-free streaming mode (`python -m Audio_SpectraCLI.headless`)
+  that emits spectrum frames as JSON lines - the same audio/FFT engine that
+  powers the GUI, usable from scripts or other tools without PyQt5 installed.
+- The GUI redraws at a fixed ~30fps from the latest audio frame rather than
+  redrawing on every single incoming audio block. Real microphone input can
+  deliver far more blocks per second than a matplotlib redraw can keep up
+  with, which previously could back up the GUI's event queue and, on some
+  PyQt5/sip builds, crash the whole app outright after sustained use. Any
+  error during a redraw is now also caught and logged instead of being
+  allowed to propagate and abort the process.
+- The GUI's canvas now resizes properly on window maximize (no clipped axis
+  labels), and every slider (Duration/Sampling Rate/Block Size/Noise
+  Threshold) has a paired numeric spinbox next to it - the exact value is
+  always visible and directly typeable, not just draggable.
+- Five view modes: **Line** (the original), **Bars** (equalizer-style),
+  **Waterfall** (scrolling history spectrogram), **Circular** (radial
+  display), and **Tuner** (big musical-note readout for the dominant
+  frequency, e.g. "A4 · 441.4 Hz · +6 cents").
+- **dB (logarithmic) scale** toggle, **windowing function** choice
+  (None/Hann/Hamming/Blackman) to reduce spectral leakage, an adjustable
+  **noise threshold** and **Gaussian smoothing strength** (previously
+  hardcoded), and **stereo channel selection** (Mono mix/Left/Right -
+  previously always forced mono).
+- **Peak-hold markers** (Line/Bars views) - a line that holds at the recent
+  peak and decays, like a hardware audio meter.
+- **Live BPM estimation** and a **dominant-note readout**, always shown
+  above the canvas regardless of view mode. The BPM estimate is a simple
+  onset/energy heuristic, not lab-grade beat tracking - expect it to be
+  unstable on non-rhythmic input, that's inherent to how simple it is.
+- **RMS meter, clip warning, and silence warning**, plus a **peak-frequency
+  sparkline** - see [What's New in v5.0.0](#whats-new-in-v500).
+- **Named preset manager** (save/load/rename/delete) with 3 hardware-tuned
+  builtins, alongside the original file-picker save/load presets.
+- **A/B settings compare**, a **local session-history log**, a **Recent
+  Exports/Recordings manager**, and **named device profiles** - all new in
+  v5.0.0, see above.
+- **Export** the current view as PNG (also bound to Ctrl+S) or the current
+  frame's data as CSV, and **record microphone input to a WAV file** - now
+  tracked in the Recent Exports manager.
+- **In-GUI microphone selection** (previously only choosable via the
+  `launch.py` interactive launcher at startup) - swap devices from a
+  dropdown before clicking Start; changing it while running is disabled,
+  the same way sampling rate/block size are, since a live stream can't be
+  reconfigured without reopening it.
+- **MIDI-out**: converts the dominant frequency to a MIDI note and sends it
+  to a virtual MIDI port, turning the visualizer into a simple audio-to-MIDI
+  tool. `mido`/`python-rtmidi` are core dependencies (installed
+  automatically by `requirements.txt`/`pip install Audio-SpectraCLI`/the
+  interactive launcher's `.venv` setup) - but the checkbox still degrades
+  gracefully with a clear explanation instead of crashing if they're somehow
+  missing or fail to build in a given environment. Windows has no native
+  virtual MIDI port support without a third-party loopback driver like
+  loopMIDI; the same message covers that case too. A stuck note is released
+  automatically both when input goes quiet for 0.5s and when you click Stop.
+
+## Packaging
+
+```
+Audio-SpectraCLI/
+
+├── .gitignore
+├── CODE_OF_CONDUCT.md
+├── Contributing.md
+├── Dockerfile
+├── LICENSE
+├── Readme.md
+├── CHANGELOG.md
+├── requirements.txt
+├── setup.cfg
+├── setup.py
+├── launch.py           # interactive cross-platform launcher (see Instant Launch)
+├── run.sh              # canonical launcher entry point for macOS/Linux terminals: ./run.sh
+├── run.command         # thin double-click wrapper around run.sh, for macOS/Linux Finder
+├── run.bat             # double-click/terminal entry point for Windows
+├── .github/
+│   └── workflows/
+│       ├── docker-publish.yml
+│       ├── label.yml
+│       └── python-publish.yml
+├── Audio_SpectraCLI/
+│   ├── main-old.py       # deprecated v3.2 implementation
+│   ├── main.py            # PyQt5 GUI, built on engine.py
+│   ├── engine.py           # Qt-independent capture/FFT/smoothing core, shared by main.py and headless.py
+│   ├── analysis.py         # pure DSP helpers: windowing, dB, notes, BPM, RMS, clipping, sparkline
+│   ├── midi_out.py         # optional MIDI-out (gracefully degrades if python-rtmidi isn't installed)
+│   ├── headless.py         # `python -m Audio_SpectraCLI.headless` JSON-streaming CLI mode
+│   ├── presets.py          # named-preset CRUD (~/.audiospectra_cli/presets/)
+│   ├── device_profiles.py  # named device-profile CRUD, matched by device name
+│   ├── session_history.py  # append-only session log (~/.audiospectra_cli/session_history.jsonl)
+│   ├── export_manifest.py  # tracked PNG/CSV/WAV exports (~/.audiospectra_cli/export_manifest.jsonl)
+│   └── __init__.py
+├── tests/
+│   ├── test-old.py
+│   ├── test.py
+│   ├── test_engine.py
+│   ├── test_headless.py
+│   ├── test_analysis.py
+│   ├── test_midi_out.py
+│   ├── test_presets.py
+│   ├── test_device_profiles.py
+│   ├── test_session_history.py
+│   ├── test_export_manifest.py
+│   ├── test_gui_smoke.py
+│   ├── test_gui_stress.py
+│   ├── test_gui_controls.py
+│   └── test_gui_features.py
+├── audiospectra-cli/         # VS Code extension (live webview + status bar)
+│   ├── assets
+│   ├── dist
+│   ├── src/
+│   │   ├── test
+│   │   ├── extension.ts
+│   │   ├── visualizerPanel.ts
+│   │   ├── lineParser.ts
+│   │   ├── lineParser.test.ts
+│   │   ├── presetUtils.ts
+│   │   └── presetUtils.test.ts
+│   ├── CHANGELOG.md
+│   ├── esbuild.js
+│   ├── eslint.config.mjs
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── README.md
+│   ├── sample.py
+│   └── tsconfig.json
+└── web/                       # Next.js SaaS app: hosted visualizer, accounts/billing, analysis API
+    ├── app/
+    ├── components/
+    ├── lib/
+    │   ├── localPresets.ts     # localStorage-backed presets (no sign-in)
+    │   ├── sessionStats.ts     # RMS/clip/silence math
+    │   ├── urlConfig.ts        # shareable-URL settings encode/decode
+    │   └── db/                 # drizzle schema: users, presets, apiKeys, apiUsageEvents
+    └── README.md
+```
+
+## Testing
+
+```sh
+# Python core (from repo root, inside a venv with requirements.txt installed)
+python3 -m pytest tests/ --ignore=tests/test.py --ignore=tests/test-old.py
+
+# VS Code extension
+cd audiospectra-cli && npm run compile && npm run lint && npm run test:unit
+
+# Web app
+cd web && npx tsc --noEmit && npm run lint && npx vitest run
+```
+
+All three suites are green as of this release; the Python suite additionally gets exercised against real microphone hardware as part of manual end-to-end passes (not run in CI, since CI has no audio device).
 
 ## Web & Extension Additions
 
@@ -477,13 +873,15 @@ family of products that all sit on top of the same FFT/DSP approach:
   paid tiers (waterfall/tuner/export/presets are paid), Clerk accounts, and
   Stripe subscription billing. See [web/README.md](./web/README.md) for
   setup - it needs your own Clerk, Stripe, and Postgres (Neon) credentials
-  to run.
-- **Live VS Code extension** (`audiospectra-cli/`) - the extension now
-  spawns `python -m Audio_SpectraCLI.headless` and streams the live
-  spectrum into a real webview panel inside VS Code (`Audio-SpectraCLI:
-  Start/Stop Live Visualization`), instead of only inserting a code
-  snippet. Requires Python + this package installed and on your `PATH`
-  (configurable via the `audioSpectraCli.pythonPath` setting). See
+  to run the account/billing/Analysis-API side; the visualizer itself,
+  local presets, session stats, and share links work with zero env vars.
+- **Live VS Code extension** (`audiospectra-cli/`) - the extension spawns
+  `python -m Audio_SpectraCLI.headless` and streams the live spectrum into
+  a real webview panel inside VS Code (`Audio-SpectraCLI:
+  Start/Stop Live Visualization`), plus a live status bar readout and a
+  save-preset command interoperable with the native GUI. Requires Python +
+  this package installed and on your `PATH` (configurable via the
+  `audioSpectraCli.pythonPath` setting). See
   [audiospectra-cli/README.md](./audiospectra-cli/README.md).
 - **Data/Analysis API** (`web/app/api/v1/analyze`) - a server-side HTTP API
   for third parties: send WAV audio or raw PCM samples, get back spectrum
@@ -498,14 +896,19 @@ public API are unchanged.
 ## Upcoming Features
 
 - CLI endpoints. ✅ Done - see `python -m Audio_SpectraCLI.headless` above.
-- Save and Export: ✅ Done in the web visualizer (PNG export, paid tier).
-  Native GUI export is still open.
+- Save and Export: ✅ Done in the web visualizer (PNG export, paid tier) and
+  the native GUI (PNG/CSV export, WAV recording, all now tracked in the
+  Recent Exports manager).
 - Option to choose between CLI/GUI. ✅ Done - `main.py` (GUI) vs.
   `headless.py` (CLI/JSON streaming) both run on the same engine.
+- Named presets/device profiles/session history/A-B compare. ✅ Done - v5.0.0.
 - Server-side decoding of compressed audio formats (MP3/AAC) for the
-  Analysis API - currently WAV-only.
+  Analysis API - currently WAV-only for the raw-sample path (MP3/AAC are
+  transcoded server-side via `ffmpeg-static` for file uploads).
 - A shared, multi-instance-safe rate limiter (e.g. Redis/Upstash) for the
-  Analysis API - the current one is in-memory, single-instance only.
+  Analysis API. ✅ Done - Upstash-backed with an in-memory fallback.
+- MIDI output port/channel profiles (named, like device profiles).
+- Cross-device sync for local (non-DB) presets.
 
 ---
 

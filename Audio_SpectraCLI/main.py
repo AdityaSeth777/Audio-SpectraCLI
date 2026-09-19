@@ -5,20 +5,25 @@
 
 import csv
 import json
+import os
 import time
+from collections import deque
 
 import numpy as np
 import sounddevice as sd
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor, QKeySequence
+from PyQt5.QtCore import QUrl, Qt, QTimer
+from PyQt5.QtGui import QColor, QDesktopServices, QKeySequence
 from PyQt5.QtWidgets import (
     QCheckBox,
     QColorDialog,
     QComboBox,
+    QDialog,
     QDoubleSpinBox,
     QFileDialog,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
+    QListWidget,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -33,7 +38,19 @@ from PyQt5.QtWidgets import (
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
-from .analysis import BeatDetector, downsample_max_pool, magnitude_to_db, nearest_musical_note
+from . import device_profiles as device_profile_store
+from . import export_manifest
+from . import presets as preset_store
+from . import session_history
+from .analysis import (
+    BeatDetector,
+    compute_rms,
+    downsample_max_pool,
+    is_clipping,
+    magnitude_to_db,
+    nearest_musical_note,
+    render_sparkline,
+)
 from .engine import AudioSpectrumEngine
 from .midi_out import MidiNoteSender, MidiUnavailableError, frequency_to_midi_note
 
@@ -41,6 +58,10 @@ RENDER_INTERVAL_MS = 33  # ~30fps redraw cap, independent of the audio block rat
 GAUSSIAN_SMOOTHING_SIGMA = 2  # matches AudioSpectrumEngine's own default; 0 effectively disables smoothing
 PEAK_HOLD_DECAY = 0.92  # per-frame multiplicative decay of the held peak
 MIDI_SILENCE_TIMEOUT_S = 0.5  # send a MIDI note-off if no new spectrum frame arrives for this long
+PEAK_FREQ_HISTORY_LEN = 50  # sparkline width; ~a few seconds of history at typical block rates
+CLIP_THRESHOLD = 0.98  # matches analysis.is_clipping's own default; named here for the status label text
+SILENCE_RMS_THRESHOLD = 0.01  # below this RMS, a block counts toward the silence streak
+SILENCE_STREAK_FOR_WARNING = 15  # consecutive quiet blocks before the "Silence" warning is shown
 WATERFALL_HISTORY_ROWS = 60
 WATERFALL_WIDTH = 200  # fixed column count per row, independent of block_size
 BARS_COUNT = 64
@@ -67,6 +88,73 @@ CHANNEL_MODE_LABELS = {
 }
 
 VIEW_MODES = ["Line", "Bars", "Waterfall", "Circular", "Tuner"]
+
+
+class ExportManagerDialog(QDialog):
+    """Lists past PNG/CSV/WAV exports (export_manifest.py), with per-item
+    "Open Containing Folder" and "Delete" actions - so a saved file isn't
+    only reachable by remembering the arbitrary path it was saved to.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('Recent Exports')
+        self.resize(500, 300)
+
+        layout = QVBoxLayout(self)
+        self.list_widget = QListWidget()
+        layout.addWidget(self.list_widget)
+
+        button_row = QHBoxLayout()
+        open_button = QPushButton('Open Containing Folder')
+        open_button.clicked.connect(self._open_selected_folder)
+        delete_button = QPushButton('Delete')
+        delete_button.clicked.connect(self._delete_selected)
+        close_button = QPushButton('Close')
+        close_button.clicked.connect(self.close)
+        button_row.addWidget(open_button)
+        button_row.addWidget(delete_button)
+        button_row.addStretch(1)
+        button_row.addWidget(close_button)
+        layout.addLayout(button_row)
+
+        self._reload()
+
+    def _reload(self):
+        self.list_widget.clear()
+        for record in export_manifest.list_exports():
+            when = time.strftime('%Y-%m-%d %H:%M', time.localtime(record.get('exported_at', 0)))
+            label = f"[{record.get('type', '?').upper()}] {when} - {record.get('path', '')}"
+            self.list_widget.addItem(label)
+        # Keeps list rows aligned 1:1 with export_manifest.list_exports()'s
+        # order so _delete_selected's index lookup below stays valid.
+        self._records = export_manifest.list_exports()
+
+    def _selected_record(self):
+        row = self.list_widget.currentRow()
+        if row < 0 or row >= len(self._records):
+            return None
+        return self._records[row]
+
+    def _open_selected_folder(self):
+        record = self._selected_record()
+        if record is None:
+            return
+        folder = os.path.dirname(record.get('path', '')) or '.'
+        QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
+
+    def _delete_selected(self):
+        record = self._selected_record()
+        if record is None:
+            return
+        confirm = QMessageBox.question(
+            self, 'Delete Export', f"Delete this file from disk?\n\n{record.get('path', '')}",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+        export_manifest.delete_export(record.get('path', ''))
+        self._reload()
 
 
 class AudioSpectrumVisualizer(QMainWindow):
@@ -102,6 +190,21 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.midi_sender = None
         self._last_spectrum_frame_time = None
 
+        # RMS/clipping/silence come from on_audio_block (every captured
+        # block, unfiltered by noise_threshold); peak-frequency history
+        # comes from _update_status_labels, which already computes the
+        # dominant frequency for the note label. Plain attribute
+        # assignment/deque.append from the engine's background thread is
+        # safe here for the same reason _latest_frame's is (see above).
+        self._latest_rms = 0.0
+        self._latest_clipping = False
+        self._silence_block_streak = 0
+        self._peak_freq_history = deque(maxlen=PEAK_FREQ_HISTORY_LEN)
+
+        # A/B compare: in-memory only (not written to disk), deliberately
+        # simpler than the named-preset manager above for quick A/B tuning.
+        self._ab_slots = {}
+
         self.engine = None
         # The engine's background thread calls _on_engine_spectrum for every
         # qualifying audio block (potentially dozens per second with real
@@ -112,6 +215,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         # QTimer on the GUI thread picks it up. Plain attribute assignment
         # is atomic under the GIL, so no lock is needed here.
         self._latest_frame = None
+        self._session_start_time = None
 
         self.render_timer = QTimer(self)
         self.render_timer.setInterval(RENDER_INTERVAL_MS)
@@ -143,6 +247,17 @@ class AudioSpectrumVisualizer(QMainWindow):
         status_row.addWidget(self.note_label)
         status_row.addStretch(1)
         outer_layout.addLayout(status_row)
+
+        stats_row = QHBoxLayout()
+        self.rms_label = QLabel('RMS: --')
+        self.clip_silence_label = QLabel('')
+        self.peak_freq_sparkline_label = QLabel('Peak Hz:')
+        self.peak_freq_sparkline_label.setStyleSheet('font-family: monospace;')
+        stats_row.addWidget(self.rms_label)
+        stats_row.addWidget(self.clip_silence_label)
+        stats_row.addWidget(self.peak_freq_sparkline_label)
+        stats_row.addStretch(1)
+        outer_layout.addLayout(stats_row)
 
         # Controls live in a scroll area - there are now enough of them that
         # a fixed-height panel would either shrink the canvas badly or run
@@ -177,6 +292,8 @@ class AudioSpectrumVisualizer(QMainWindow):
         self._add_device_row()
         self._add_export_row()
         self._add_preset_row()
+        self._add_named_preset_row()
+        self._add_ab_compare_row()
         self._add_midi_checkbox()
 
         self.start_button = QPushButton('Start Visualization')
@@ -359,6 +476,129 @@ class AudioSpectrumVisualizer(QMainWindow):
         row.addWidget(self.device_combo, stretch=1)
         self.layout.addLayout(row)
 
+        self._add_device_profile_row()
+
+    def _add_device_profile_row(self):
+        """Named device profiles (device name + fs + channel mode), for
+        quickly switching between e.g. "laptop mic" and "USB interface"
+        setups - see device_profiles.py's docstring for why this matches
+        by device NAME rather than sounddevice's numeric index.
+        """
+        row = QHBoxLayout()
+
+        self.device_profile_combo = QComboBox()
+        self._refresh_device_profile_combo()
+
+        save_button = QPushButton('Save Device Profile As...')
+        save_button.clicked.connect(self.save_device_profile)
+
+        load_button = QPushButton('Load')
+        load_button.clicked.connect(self.load_device_profile)
+
+        delete_button = QPushButton('Delete')
+        delete_button.clicked.connect(self.delete_device_profile)
+
+        row.addWidget(QLabel('Device Profiles:'))
+        row.addWidget(self.device_profile_combo, stretch=1)
+        row.addWidget(save_button)
+        row.addWidget(load_button)
+        row.addWidget(delete_button)
+        self.layout.addLayout(row)
+
+    def _refresh_device_profile_combo(self, select=None):
+        self.device_profile_combo.blockSignals(True)
+        self.device_profile_combo.clear()
+        try:
+            names = device_profile_store.list_profiles()
+        except OSError as exc:
+            QMessageBox.warning(self, 'Device profiles unavailable', f'Could not read the device profiles directory: {exc}')
+            names = []
+        self.device_profile_combo.addItems(names)
+        if select is not None:
+            index = self.device_profile_combo.findText(select)
+            if index >= 0:
+                self.device_profile_combo.setCurrentIndex(index)
+        self.device_profile_combo.blockSignals(False)
+
+    def _current_device_display_name(self):
+        """The current device's display name, stripped of the "[i] "
+        index prefix and " (default)" suffix _add_device_row adds - so
+        it's just the raw device name, comparable to what's plugged into
+        a *different* machine later.
+        """
+        text = self.device_combo.currentText()
+        text = text.split('] ', 1)[-1] if text.startswith('[') else text
+        return text.removesuffix(' (default)')
+
+    def save_device_profile(self):
+        name, ok = QInputDialog.getText(self, 'Save Device Profile As', 'Profile name:')
+        if not ok or not name.strip():
+            return
+        try:
+            device_profile_store.save_profile(
+                None, name.strip(), self._current_device_display_name(), self.fs, self.channel_mode,
+            )
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, 'Save failed', f'Could not save device profile: {exc}')
+            return
+        self._refresh_device_profile_combo(select=name.strip())
+
+    def load_device_profile(self):
+        name = self.device_profile_combo.currentText()
+        if not name:
+            return
+        try:
+            profile = device_profile_store.load_profile(None, name)
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, 'Load failed', f'Could not load device profile: {exc}')
+            return
+
+        target_device_name = profile.get('device_name')
+        matched = False
+        if target_device_name:
+            for combo_index in range(self.device_combo.count()):
+                if self._device_display_name_at(combo_index) == target_device_name:
+                    self.device_combo.setCurrentIndex(combo_index)
+                    matched = True
+                    break
+
+        settings = {}
+        if 'fs' in profile:
+            settings['fs'] = profile['fs']
+        if 'channel_mode' in profile:
+            settings['channel_mode'] = profile['channel_mode']
+        if settings:
+            self.apply_settings_dict(settings)
+
+        if not matched and target_device_name:
+            QMessageBox.information(
+                self, 'Device not found',
+                f"'{target_device_name}' isn't currently available - applied the saved sample rate/channel "
+                "mode, but the input device selection was left unchanged.",
+            )
+
+    def _device_display_name_at(self, combo_index):
+        text = self.device_combo.itemText(combo_index)
+        text = text.split('] ', 1)[-1] if text.startswith('[') else text
+        return text.removesuffix(' (default)')
+
+    def delete_device_profile(self):
+        name = self.device_profile_combo.currentText()
+        if not name:
+            return
+        confirm = QMessageBox.question(
+            self, 'Delete Device Profile', f"Delete device profile '{name}'? This can't be undone.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+        try:
+            device_profile_store.delete_profile(None, name)
+        except OSError as exc:
+            QMessageBox.warning(self, 'Delete failed', f'Could not delete device profile: {exc}')
+            return
+        self._refresh_device_profile_combo()
+
     def _add_export_row(self):
         row = QHBoxLayout()
 
@@ -371,10 +611,45 @@ class AudioSpectrumVisualizer(QMainWindow):
         self.record_button = QPushButton('Start Recording (WAV)')
         self.record_button.clicked.connect(self.toggle_recording)
 
+        history_button = QPushButton('Session History')
+        history_button.clicked.connect(self.show_session_history)
+
+        exports_button = QPushButton('Recent Exports')
+        exports_button.clicked.connect(self.show_export_manager)
+
         row.addWidget(export_png_button)
         row.addWidget(export_csv_button)
         row.addWidget(self.record_button)
+        row.addWidget(history_button)
+        row.addWidget(exports_button)
         self.layout.addLayout(row)
+
+    def show_export_manager(self):
+        ExportManagerDialog(self).exec_()
+
+    def show_session_history(self):
+        sessions = session_history.list_sessions()
+        if not sessions:
+            QMessageBox.information(self, 'Session History', 'No past sessions recorded yet.')
+            return
+
+        lines = []
+        for record in sessions:
+            ended_at = time.strftime('%Y-%m-%d %H:%M', time.localtime(record.get('ended_at', 0)))
+            duration = record.get('duration_seconds', 0)
+            device = record.get('device_name') or 'unknown device'
+            bpm = record.get('avg_bpm')
+            bpm_text = f", ~{bpm:.0f} BPM" if bpm else ""
+            lines.append(f"{ended_at} - {duration:.0f}s on {device}{bpm_text}")
+
+        box = QMessageBox(self)
+        box.setWindowTitle('Session History')
+        box.setText('\n'.join(lines))
+        clear_button = box.addButton('Clear History', QMessageBox.DestructiveRole)
+        box.addButton(QMessageBox.Ok)
+        box.exec_()
+        if box.clickedButton() is clear_button:
+            session_history.clear_history()
 
     def _add_preset_row(self):
         row = QHBoxLayout()
@@ -389,6 +664,71 @@ class AudioSpectrumVisualizer(QMainWindow):
         row.addWidget(load_button)
         self.layout.addLayout(row)
 
+    def _add_named_preset_row(self):
+        """A named-preset manager (list/save-as/load/rename/delete against
+        the fixed presets directory), distinct from the file-picker based
+        save/load above which round-trips through an arbitrary path.
+        """
+        row = QHBoxLayout()
+
+        self.named_preset_combo = QComboBox()
+        self._refresh_named_preset_combo()
+
+        save_as_button = QPushButton('Save As...')
+        save_as_button.clicked.connect(self.save_named_preset)
+
+        load_named_button = QPushButton('Load')
+        load_named_button.clicked.connect(self.load_named_preset)
+
+        rename_button = QPushButton('Rename')
+        rename_button.clicked.connect(self.rename_named_preset)
+
+        delete_button = QPushButton('Delete')
+        delete_button.clicked.connect(self.delete_named_preset)
+
+        row.addWidget(QLabel('Presets:'))
+        row.addWidget(self.named_preset_combo, stretch=1)
+        row.addWidget(save_as_button)
+        row.addWidget(load_named_button)
+        row.addWidget(rename_button)
+        row.addWidget(delete_button)
+        self.layout.addLayout(row)
+
+    def _add_ab_compare_row(self):
+        """A/B settings compare: two in-memory (not persisted-to-disk)
+        slots to flip between while tuning, without the overhead of
+        naming/saving/loading a named preset for a quick comparison.
+        """
+        row = QHBoxLayout()
+
+        store_a_button = QPushButton('Store A')
+        store_a_button.clicked.connect(lambda: self.store_ab_slot('A'))
+        recall_a_button = QPushButton('Recall A')
+        recall_a_button.clicked.connect(lambda: self.recall_ab_slot('A'))
+
+        store_b_button = QPushButton('Store B')
+        store_b_button.clicked.connect(lambda: self.store_ab_slot('B'))
+        recall_b_button = QPushButton('Recall B')
+        recall_b_button.clicked.connect(lambda: self.recall_ab_slot('B'))
+
+        row.addWidget(QLabel('A/B Compare:'))
+        row.addWidget(store_a_button)
+        row.addWidget(recall_a_button)
+        row.addWidget(store_b_button)
+        row.addWidget(recall_b_button)
+        row.addStretch(1)
+        self.layout.addLayout(row)
+
+    def store_ab_slot(self, slot):
+        self._ab_slots[slot] = self._current_settings_dict()
+
+    def recall_ab_slot(self, slot):
+        settings = self._ab_slots.get(slot)
+        if settings is None:
+            QMessageBox.information(self, 'Nothing stored', f"Slot {slot} hasn't been stored yet.")
+            return
+        self.apply_settings_dict(settings)
+
     def _add_midi_checkbox(self):
         self.midi_checkbox = QCheckBox('Send dominant frequency as MIDI (virtual port)')
         self.midi_checkbox.toggled.connect(self.set_midi_enabled)
@@ -401,6 +741,17 @@ class AudioSpectrumVisualizer(QMainWindow):
         # must never touch Qt widgets directly from here.
         self._latest_frame = (freq_bins, spectrum, max_magnitude)
         self._last_spectrum_frame_time = time.monotonic()
+
+    def _on_audio_block(self, samples):
+        # Also called from the engine's background thread, for EVERY
+        # captured block - unlike _on_engine_spectrum, this isn't gated by
+        # noise_threshold, which is what lets it actually detect silence.
+        self._latest_rms = compute_rms(samples)
+        self._latest_clipping = is_clipping(samples, threshold=CLIP_THRESHOLD)
+        if self._latest_rms < SILENCE_RMS_THRESHOLD:
+            self._silence_block_streak += 1
+        else:
+            self._silence_block_streak = 0
 
     def _render_latest_frame(self):
         self._check_midi_silence_timeout()
@@ -566,6 +917,31 @@ class AudioSpectrumVisualizer(QMainWindow):
                 self.note_label.setText(f"Note: {note_name}{octave} ({dominant_freq:.1f} Hz)")
             else:
                 self.note_label.setText(f"Note: -- ({dominant_freq:.1f} Hz)")
+            self._peak_freq_history.append(dominant_freq)
+
+        self._update_stats_row()
+
+    def _update_stats_row(self):
+        self.rms_label.setText(f"RMS: {self._latest_rms:.3f}")
+
+        if self._latest_clipping:
+            self.clip_silence_label.setText('⚠ Clipping')
+            self.clip_silence_label.setStyleSheet('color: red; font-weight: bold;')
+        elif self._silence_block_streak >= SILENCE_STREAK_FOR_WARNING:
+            self.clip_silence_label.setText('⚠ Silence')
+            self.clip_silence_label.setStyleSheet('color: gray;')
+        else:
+            self.clip_silence_label.setText('')
+            self.clip_silence_label.setStyleSheet('')
+
+        if self._peak_freq_history:
+            sparkline = render_sparkline(
+                self._peak_freq_history, low=self.frequency_range[0], high=self.frequency_range[1],
+            )
+            latest = self._peak_freq_history[-1]
+            self.peak_freq_sparkline_label.setText(f"Peak Hz: {sparkline} {latest:.0f}")
+        else:
+            self.peak_freq_sparkline_label.setText('Peak Hz:')
 
     def _maybe_send_midi(self, visible_freqs, visible_values):
         if not self.midi_enabled or self.midi_sender is None or visible_values.size == 0:
@@ -722,6 +1098,7 @@ class AudioSpectrumVisualizer(QMainWindow):
             return
         try:
             self.canvas.figure.savefig(path)
+            export_manifest.record_export('png', path)
         except Exception as exc:
             # File I/O (permission denied, disk full, bad path, ...) run
             # directly inside a button-click Qt slot must not be allowed to
@@ -741,6 +1118,7 @@ class AudioSpectrumVisualizer(QMainWindow):
                 writer = csv.writer(f)
                 writer.writerow(['frequency_hz', 'magnitude'])
                 writer.writerows(zip(freq_bins.tolist(), spectrum.tolist()))
+            export_manifest.record_export('csv', path)
         except Exception as exc:
             QMessageBox.warning(self, 'Export failed', f'Could not save CSV: {exc}')
 
@@ -774,6 +1152,7 @@ class AudioSpectrumVisualizer(QMainWindow):
         if path:
             try:
                 self._write_wav(path, samples, self.fs)
+                export_manifest.record_export('wav', path)
             except Exception as exc:
                 QMessageBox.warning(self, 'Save failed', f'Could not save recording: {exc}')
 
@@ -825,6 +1204,74 @@ class AudioSpectrumVisualizer(QMainWindow):
             # (e.g. frequency_range not a 2-element list), previously raised
             # straight out of this button-click slot uncaught.
             QMessageBox.warning(self, 'Load failed', f'Could not load preset: {exc}')
+
+    def _refresh_named_preset_combo(self, select=None):
+        self.named_preset_combo.blockSignals(True)
+        self.named_preset_combo.clear()
+        try:
+            names = preset_store.list_presets()
+        except OSError as exc:
+            QMessageBox.warning(self, 'Presets unavailable', f'Could not read the presets directory: {exc}')
+            names = []
+        self.named_preset_combo.addItems(names)
+        if select is not None:
+            index = self.named_preset_combo.findText(select)
+            if index >= 0:
+                self.named_preset_combo.setCurrentIndex(index)
+        self.named_preset_combo.blockSignals(False)
+
+    def save_named_preset(self):
+        name, ok = QInputDialog.getText(self, 'Save Preset As', 'Preset name:')
+        if not ok or not name.strip():
+            return
+        try:
+            preset_store.save_preset(None, name.strip(), self._current_settings_dict())
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, 'Save failed', f'Could not save preset: {exc}')
+            return
+        self._refresh_named_preset_combo(select=name.strip())
+
+    def load_named_preset(self):
+        name = self.named_preset_combo.currentText()
+        if not name:
+            return
+        try:
+            settings = preset_store.load_preset(None, name)
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, 'Load failed', f'Could not load preset: {exc}')
+            return
+        self.apply_settings_dict(settings)
+
+    def rename_named_preset(self):
+        old_name = self.named_preset_combo.currentText()
+        if not old_name:
+            return
+        new_name, ok = QInputDialog.getText(self, 'Rename Preset', 'New name:', text=old_name)
+        if not ok or not new_name.strip() or new_name.strip() == old_name:
+            return
+        try:
+            preset_store.rename_preset(None, old_name, new_name.strip())
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, 'Rename failed', f'Could not rename preset: {exc}')
+            return
+        self._refresh_named_preset_combo(select=new_name.strip())
+
+    def delete_named_preset(self):
+        name = self.named_preset_combo.currentText()
+        if not name:
+            return
+        confirm = QMessageBox.question(
+            self, 'Delete Preset', f"Delete preset '{name}'? This can't be undone.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+        try:
+            preset_store.delete_preset(None, name)
+        except OSError as exc:
+            QMessageBox.warning(self, 'Delete failed', f'Could not delete preset: {exc}')
+            return
+        self._refresh_named_preset_combo()
 
     def apply_settings_dict(self, settings):
         """Applies a settings dict (from load_preset, or a test) to the UI controls.
@@ -882,14 +1329,39 @@ class AudioSpectrumVisualizer(QMainWindow):
 
     # ---- lifecycle -------------------------------------------------------
 
+    def _log_session_end(self):
+        """Appends a session-history record if a session was actually
+        running (self._session_start_time is set), otherwise a no-op -
+        called from both the Stop button and closeEvent's stop path.
+        """
+        if self._session_start_time is None:
+            return
+        duration = time.monotonic() - self._session_start_time
+        session_history.append_session(
+            duration_seconds=duration,
+            # The raw combo text carries a "[i] " index prefix and a
+            # " (default)" suffix (see _add_device_row) - not wrong to log,
+            # but noticeably uglier in the Session History viewer than the
+            # same clean name device_profiles.py already needed.
+            device_name=self._current_device_display_name() if hasattr(self, 'device_combo') else None,
+            avg_bpm=self.bpm_estimate,
+        )
+        self._session_start_time = None
+
     def toggle_visualization(self):
         if self.engine is not None:
             self._finish_recording()  # otherwise stopping mid-recording silently discards it
+            self._log_session_end()
             self.engine.stop()
             self.engine = None
             self._latest_frame = None
             self.beat_detector = None
             self._last_spectrum_frame_time = None
+            self._latest_rms = 0.0
+            self._latest_clipping = False
+            self._silence_block_streak = 0
+            self._peak_freq_history.clear()
+            self._update_stats_row()
             if self.midi_sender is not None:
                 # Otherwise a note started before Stop was clicked has no
                 # more frames coming (the silence-timeout check above only
@@ -903,6 +1375,7 @@ class AudioSpectrumVisualizer(QMainWindow):
             channels = self._resolve_channel_count()
             new_engine = AudioSpectrumEngine(
                 on_spectrum=self._on_engine_spectrum,
+                on_audio_block=self._on_audio_block,
                 fs=self.fs,
                 block_size=self.block_size,
                 device=self.device,
@@ -926,6 +1399,7 @@ class AudioSpectrumVisualizer(QMainWindow):
 
             self.engine = new_engine
             self.beat_detector = BeatDetector()
+            self._session_start_time = time.monotonic()
             self.device_combo.setEnabled(False)
             self.start_button.setText('Stop Visualization')
 
@@ -949,6 +1423,8 @@ class AudioSpectrumVisualizer(QMainWindow):
 
     def closeEvent(self, event):
         if self.engine is not None:
+            self._finish_recording()  # otherwise closing the window mid-recording silently discards it, same as Stop used to
+            self._log_session_end()
             self.engine.stop()
             self.engine = None
         if self.midi_sender is not None:

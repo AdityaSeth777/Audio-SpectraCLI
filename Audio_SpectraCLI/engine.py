@@ -38,8 +38,16 @@ class AudioSpectrumEngine:
         channels=1,
         channel_mode="mono_mix",
         window_type="none",
+        on_audio_block=None,
     ):
         self.on_spectrum = on_spectrum
+        # Optional, separate from on_spectrum: invoked for every captured
+        # block regardless of noise_threshold gating, with the raw
+        # (post channel-select, pre-window, pre-FFT) samples. on_spectrum
+        # only fires when max_magnitude clears noise_threshold, which is
+        # exactly wrong for silence detection - this exists so callers can
+        # do RMS/clipping/silence checks that need to see quiet blocks too.
+        self.on_audio_block = on_audio_block
         self.fs = fs
         self.block_size = block_size
         self.noise_threshold = noise_threshold
@@ -93,6 +101,9 @@ class AudioSpectrumEngine:
 
                 if self.recording:
                     self._recorded_chunks.append(samples.copy())
+
+                if self.on_audio_block is not None:
+                    self.on_audio_block(samples)
 
                 windowed_samples = apply_window(samples, self.window_type)
 

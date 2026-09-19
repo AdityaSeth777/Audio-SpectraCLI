@@ -2,7 +2,7 @@
   "name": "audio-spectracli-extension",
   "displayName": "Audio-SpectraCLI Extension",
   "description": "VS Code extension for integrating Audio-SpectraCLI.",
-  "version": "4.1.0",
+  "version": "5.0.0",
   "publisher": "AdityaSeth777",
   "repository": {
     "type": "git",
@@ -16,7 +16,8 @@
     "onCommand:extension.addSpectraCode",
     "onCommand:extension.viewSpectraCLIStatus",
     "onCommand:extension.startLiveVisualization",
-    "onCommand:extension.stopLiveVisualization"
+    "onCommand:extension.stopLiveVisualization",
+    "onCommand:extension.saveCurrentFrameAsPreset"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -36,6 +37,10 @@
       {
         "command": "extension.stopLiveVisualization",
         "title": "Audio-SpectraCLI: Stop Live Visualization"
+      },
+      {
+        "command": "extension.saveCurrentFrameAsPreset",
+        "title": "Audio-SpectraCLI: Save Current Frame as Preset"
       }
     ],
     "configuration": {
@@ -60,6 +65,11 @@
           "type": "number",
           "default": 64,
           "description": "Number of bars to render in the live visualizer."
+        },
+        "audioSpectraCli.visualizerColor": {
+          "type": "string",
+          "default": "#3b82f6",
+          "description": "Bar color used by the live visualizer canvas (CSS color string). Picked up the next time live visualization is started."
         }
       }
     }
@@ -70,14 +80,17 @@
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
-    "test:unit": "node --test dist/lineParser.test.js",
+    "test:unit": "node --test dist/lineParser.test.js dist/presetUtils.test.js",
     "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.9",
     "@types/node": "^22.7.9",
     "@types/vscode": "^1.70.0",
-    "@vscode/vsce": "^3.2.1",
+    "@typescript-eslint/eslint-plugin": "^8.70.0",
+    "@typescript-eslint/parser": "^8.70.0",
+    "@vscode/vsce": "^4.0.0",
+    "eslint": "^10.11.0",
     "typescript": "^4.0.0"
   }
 }

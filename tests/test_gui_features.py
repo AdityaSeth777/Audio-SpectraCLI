@@ -5,16 +5,18 @@ threshold/window-type controls.
 
 import json
 import os
+import time
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QMessageBox
 
-from Audio_SpectraCLI import AudioSpectrumVisualizer
-from Audio_SpectraCLI.main import VIEW_MODES
+from Audio_SpectraCLI import AudioSpectrumVisualizer, export_manifest, session_history
+from Audio_SpectraCLI import device_profiles as device_profile_store
+from Audio_SpectraCLI.main import SILENCE_STREAK_FOR_WARNING, VIEW_MODES, ExportManagerDialog
 
 _app = QApplication.instance() or QApplication([])
 
@@ -246,6 +248,223 @@ def test_save_and_load_preset_round_trip(tmp_path):
 
     window.close()
     window2.close()
+
+
+def test_stats_row_reflects_rms_clipping_and_peak_history():
+    window = AudioSpectrumVisualizer()
+
+    window._on_audio_block(np.full(window.block_size, 0.5))
+    frame = _real_frame(window, freq_hz=440)
+    window.update_plot(*frame)
+
+    assert "0.5" in window.rms_label.text()
+    assert window.clip_silence_label.text() == ""
+    assert len(window._peak_freq_history) == 1
+    assert "Peak Hz:" in window.peak_freq_sparkline_label.text()
+
+    window._on_audio_block(np.full(window.block_size, 0.99))
+    window.update_plot(*frame)
+    assert "Clipping" in window.clip_silence_label.text()
+
+    window.close()
+
+
+def test_stats_row_shows_silence_warning_after_a_quiet_streak():
+    window = AudioSpectrumVisualizer()
+    quiet_block = np.zeros(window.block_size)
+
+    for _ in range(SILENCE_STREAK_FOR_WARNING):
+        window._on_audio_block(quiet_block)
+    window._update_stats_row()
+
+    assert "Silence" in window.clip_silence_label.text()
+    window.close()
+
+
+def test_stopping_visualization_resets_stats(monkeypatch):
+    window = AudioSpectrumVisualizer()
+    window._on_audio_block(np.full(window.block_size, 0.99))
+    window._peak_freq_history.append(123.0)
+
+    fake_engine = MagicMock()
+    fake_engine.recording = False  # a truthy MagicMock default here would hit the
+    # real QFileDialog.getSaveFileName in _finish_recording, which hangs forever
+    # under the offscreen Qt platform these tests run under.
+    window.engine = fake_engine
+    window.toggle_visualization()  # engine is not None -> takes the "stop" branch
+
+    assert window._latest_rms == 0.0
+    assert window._latest_clipping is False
+    assert window._silence_block_streak == 0
+    assert len(window._peak_freq_history) == 0
+    assert window.clip_silence_label.text() == ""
+
+    window.close()
+
+
+def test_device_profile_save_and_load_round_trip(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIOSPECTRA_CLI_HOME", str(tmp_path))
+    window = AudioSpectrumVisualizer()
+    window.fs_spinbox.setValue(32000)
+
+    with patch("Audio_SpectraCLI.main.QInputDialog.getText", return_value=("My Setup", True)):
+        window.save_device_profile()
+    assert window.device_profile_combo.currentText() == "My Setup"
+
+    window2 = AudioSpectrumVisualizer()
+    window2.device_profile_combo.setCurrentText("My Setup")
+    window2.load_device_profile()
+    assert window2.fs == 32000
+
+    window.close()
+    window2.close()
+
+
+def test_device_profile_load_with_device_unavailable_warns_but_still_applies_fs(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIOSPECTRA_CLI_HOME", str(tmp_path))
+    window = AudioSpectrumVisualizer()
+    directory = device_profile_store.get_profiles_dir()
+    device_profile_store.save_profile(directory, "Ghost Device", "A Device That Is Not Plugged In", 32000, "left")
+    window._refresh_device_profile_combo()
+
+    window.device_profile_combo.setCurrentText("Ghost Device")
+    with patch("Audio_SpectraCLI.main.QMessageBox.information") as mock_info:
+        window.load_device_profile()
+        mock_info.assert_called_once()
+    assert window.fs == 32000
+
+    window.close()
+
+
+def test_export_png_records_to_manifest(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIOSPECTRA_CLI_HOME", str(tmp_path))
+    window = AudioSpectrumVisualizer()
+    png_path = tmp_path / "spectrum.png"
+
+    with patch("Audio_SpectraCLI.main.QFileDialog.getSaveFileName", return_value=(str(png_path), "")):
+        window.export_png()
+
+    exports = export_manifest.list_exports()
+    assert len(exports) == 1
+    assert exports[0]["type"] == "png"
+    assert exports[0]["path"] == str(png_path)
+    window.close()
+
+
+def test_export_manager_dialog_lists_and_deletes(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIOSPECTRA_CLI_HOME", str(tmp_path))
+    csv_path = tmp_path / "spectrum.csv"
+    csv_path.write_text("frequency_hz,magnitude\n")
+    export_manifest.record_export("csv", str(csv_path))
+
+    window = AudioSpectrumVisualizer()
+    dialog = ExportManagerDialog(window)
+    assert dialog.list_widget.count() == 1
+
+    dialog.list_widget.setCurrentRow(0)
+    with patch("Audio_SpectraCLI.main.QMessageBox.question", return_value=QMessageBox.Yes):
+        dialog._delete_selected()
+
+    assert dialog.list_widget.count() == 0
+    assert not csv_path.exists()
+    window.close()
+
+
+def test_ab_compare_store_and_recall():
+    window = AudioSpectrumVisualizer()
+
+    window.fs_spinbox.setValue(32000)
+    window.store_ab_slot('A')
+    window.fs_spinbox.setValue(44100)
+    window.store_ab_slot('B')
+
+    window.recall_ab_slot('A')
+    assert window.fs == 32000
+    window.recall_ab_slot('B')
+    assert window.fs == 44100
+
+    window.close()
+
+
+def test_ab_compare_recall_empty_slot_warns_without_raising():
+    window = AudioSpectrumVisualizer()
+    with patch("Audio_SpectraCLI.main.QMessageBox.information") as mock_info:
+        window.recall_ab_slot('A')
+        mock_info.assert_called_once()
+    window.close()
+
+
+def test_session_history_logged_on_stop(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIOSPECTRA_CLI_HOME", str(tmp_path))
+    window = AudioSpectrumVisualizer()
+
+    fake_engine = MagicMock()
+    fake_engine.recording = False
+    window.engine = fake_engine
+    window._session_start_time = time.monotonic() - 5
+    window.bpm_estimate = 128.0
+
+    window.toggle_visualization()  # stop branch
+
+    sessions = session_history.list_sessions()
+    assert len(sessions) == 1
+    assert sessions[0]["avg_bpm"] == 128.0
+    assert window._session_start_time is None
+
+    window.close()
+
+
+def test_show_session_history_with_no_sessions_informs_user(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIOSPECTRA_CLI_HOME", str(tmp_path))
+    window = AudioSpectrumVisualizer()
+    with patch("Audio_SpectraCLI.main.QMessageBox.information") as mock_info:
+        window.show_session_history()
+        mock_info.assert_called_once()
+    window.close()
+
+
+def test_named_preset_manager_save_load_rename_delete(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIOSPECTRA_CLI_HOME", str(tmp_path))
+    window = AudioSpectrumVisualizer()
+    builtin_count = window.named_preset_combo.count()
+
+    window.fs_spinbox.setValue(32000)
+    with patch("Audio_SpectraCLI.main.QInputDialog.getText", return_value=("My GUI Preset", True)):
+        window.save_named_preset()
+    assert window.named_preset_combo.count() == builtin_count + 1
+    assert window.named_preset_combo.currentText() == "My GUI Preset"
+
+    window2 = AudioSpectrumVisualizer()
+    window2.named_preset_combo.setCurrentText("My GUI Preset")
+    window2.load_named_preset()
+    assert window2.fs == 32000
+
+    with patch("Audio_SpectraCLI.main.QInputDialog.getText", return_value=("Renamed Preset", True)):
+        window.rename_named_preset()
+    assert window.named_preset_combo.currentText() == "Renamed Preset"
+    assert "My GUI Preset" not in [window.named_preset_combo.itemText(i) for i in range(window.named_preset_combo.count())]
+
+    with patch("Audio_SpectraCLI.main.QMessageBox.question", return_value=QMessageBox.Yes):
+        window.delete_named_preset()
+    assert window.named_preset_combo.count() == builtin_count
+
+    window.close()
+    window2.close()
+
+
+def test_named_preset_rename_collision_shows_warning(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIOSPECTRA_CLI_HOME", str(tmp_path))
+    window = AudioSpectrumVisualizer()
+    with patch("Audio_SpectraCLI.main.QInputDialog.getText", return_value=("Existing", True)):
+        window.save_named_preset()
+    window.named_preset_combo.setCurrentText("Existing")
+
+    with patch("Audio_SpectraCLI.main.QInputDialog.getText", return_value=("Balanced (default)", True)):
+        with patch("Audio_SpectraCLI.main.QMessageBox.warning") as mock_warn:
+            window.rename_named_preset()
+            mock_warn.assert_called_once()
+
+    window.close()
 
 
 def test_midi_checkbox_handles_unavailable_gracefully():
