@@ -52,6 +52,13 @@
 - A headless, GUI-free streaming mode (`python -m Audio_SpectraCLI.headless`)
   that emits spectrum frames as JSON lines - the same audio/FFT engine that
   powers the GUI, usable from scripts or other tools without PyQt5 installed.
+- The GUI redraws at a fixed ~30fps from the latest audio frame rather than
+  redrawing on every single incoming audio block. Real microphone input can
+  deliver far more blocks per second than a matplotlib redraw can keep up
+  with, which previously could back up the GUI's event queue and, on some
+  PyQt5/sip builds, crash the whole app outright after sustained use. Any
+  error during a redraw is now also caught and logged instead of being
+  allowed to propagate and abort the process.
 
 ## Packaging
 
@@ -68,8 +75,9 @@ Audio-SpectraCLI/
 ├── setup.cfg
 ├── setup.py
 ├── launch.py           # interactive cross-platform launcher (see Instant Launch)
-├── run.command         # double-click wrapper for launch.py on macOS/Linux
-├── run.bat             # double-click wrapper for launch.py on Windows
+├── run.sh              # canonical launcher entry point for macOS/Linux terminals: ./run.sh
+├── run.command         # thin double-click wrapper around run.sh, for macOS/Linux Finder
+├── run.bat             # double-click/terminal entry point for Windows
 ├── .github/
 │   └── workflows/
 │       ├── docker-publish.yml
@@ -123,9 +131,14 @@ If you already have the repo (`git clone` or downloaded), the fastest way to
 run the native GUI is the interactive launcher — it sits alongside every
 other installation method below, it doesn't replace them.
 
-- **macOS/Linux**: double-click **`run.command`** (or run
-  `./run.command` in a terminal).
-- **Windows**: double-click **`run.bat`**.
+- **macOS/Linux, from a terminal**: `./run.sh` — this is the canonical
+  entry point; read it if you want to know exactly what runs.
+- **macOS/Linux, by double-clicking in Finder**: double-click
+  **`run.command`** — Finder normally opens a plain `.sh` file in a text
+  editor instead of running it, so `run.command` exists purely as a thin
+  wrapper that calls `run.sh` for that double-click case. It contains no
+  logic of its own.
+- **Windows**: double-click **`run.bat`** (or run it from a terminal).
 - **Any OS directly**: `python3 launch.py` (or `python launch.py`).
 
 It detects your OS and Python version, checks whether `numpy`/`scipy`/
@@ -136,12 +149,13 @@ Python, since modern Homebrew/python.org Python (and recent Linux distros)
 refuse that with an "externally-managed-environment" error. After that
 one-time setup, it lists your real audio input devices (via
 `sounddevice.query_devices()`) so you can pick one (or just hit Enter for
-the system default), prompts for duration/sampling rate/block size/color
-with sensible defaults on Enter, and then opens the GUI and starts
-visualizing immediately — no extra click needed. Hitting Enter through
-every prompt gets you a running visualizer in a few seconds. Once `.venv`
-exists, `run.command`/`run.bat` use it directly on every later run, so only
-the first run pays the setup cost.
+the system default) — this is the only thing it asks, since it's the one
+setting the GUI itself has no way to know. It then opens the GUI and starts
+visualizing immediately, no extra click. Duration, sampling rate, and block
+size are **not** asked in the terminal, since the GUI already has sliders
+for all three once it's open — asking twice for the same thing would just
+be redundant. Once `.venv` exists, later runs skip the setup check entirely
+and go straight to the device prompt.
 
 #### First time on macOS, step by step
 
@@ -151,27 +165,27 @@ the first run pays the setup cost.
    Homebrew), then try again.
 2. **Get the repo**: `git clone https://github.com/AdityaSeth777/Audio-SpectraCLI.git`
    (or download and unzip it from GitHub).
-3. **Double-click `run.command`** in the repo folder.
-   - First time only: macOS may refuse to run it with an "unidentified
-     developer" warning, since it isn't code-signed. Right-click (or
-     Control-click) `run.command` → **Open** → confirm in the dialog. You
-     only need to do this once.
-4. **Terminal opens** and the launcher runs. If packages are missing, it
-   asks: `Set them up now in a local .venv (won't touch your system
-   Python)? [Y/n]` — press Enter or `y`. This downloads and installs
-   `numpy`/`scipy`/`sounddevice`/`matplotlib`/`PyQt5` into a `.venv` folder
-   it creates next to the script (takes a minute or two; only happens
-   once).
+3. **Run it**: either open Terminal, `cd` into the repo folder, and run
+   `./run.sh` — or double-click `run.command` in Finder.
+   - Double-click, first time only: macOS may refuse to run it with an
+     "unidentified developer" warning, since it isn't code-signed.
+     Right-click (or Control-click) `run.command` → **Open** → confirm in
+     the dialog. You only need to do this once.
+4. **The launcher runs.** If packages are missing, it asks: `Set them up
+   now in a local .venv (won't touch your system Python)? [Y/n]` — press
+   Enter or `y`. This downloads and installs `numpy`/`scipy`/`sounddevice`/
+   `matplotlib`/`PyQt5` into a `.venv` folder it creates next to the script
+   (takes a minute or two; only happens once).
 5. **Grant microphone access** when macOS prompts for it (a system dialog
    asking to let Terminal/Python use the microphone) — click **Allow**. If
    you miss it or previously denied it, go to **System Settings → Privacy
    & Security → Microphone** and enable it for Terminal yourself.
 6. **Pick an audio input device** from the list it prints (or just press
-   Enter for the default), then press Enter through the duration/sampling
-   rate/block size/color prompts to accept the defaults.
+   Enter for the default) — that's the only prompt.
 7. The **GUI window opens and starts visualizing immediately** — speak or
    play audio near the selected microphone and you should see the spectrum
-   move.
+   move. Adjust duration/sampling rate/block size using the sliders inside
+   the GUI itself.
 
 ---
 

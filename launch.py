@@ -15,11 +15,12 @@ What it does:
      Homebrew/python.org Python (PEP 668) and recent Linux distros raise
      when you try to pip install into the system Python directly — a very
      common first-run failure this avoids automatically instead of crashing.
-  3. Lists real audio input devices (via sounddevice) and lets you pick one.
-  4. Prompts for duration/sampling rate/block size/color — press Enter on
-     any prompt to keep the default, so hitting Enter through all of them
-     launches immediately with sane defaults.
-  5. Opens the GUI and starts visualizing immediately (no extra click).
+  3. Lists real audio input devices (via sounddevice) and lets you pick one
+     — this is hardware-specific and the GUI has no way to know it itself.
+  4. Opens the GUI and starts visualizing immediately (no extra click, and
+     no other prompts) — duration, sampling rate, and block size are
+     already adjustable via sliders inside the GUI itself once it's open,
+     so the launcher doesn't ask about them separately.
 """
 
 import os
@@ -128,40 +129,22 @@ def choose_audio_device():
     return chosen
 
 
-def prompt_int(label, default):
-    raw = input(f"{label} [{default}]: ").strip()
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        print(f"Not a number — using default {default}.")
-        return default
-
-
-def prompt_str(label, default):
-    raw = input(f"{label} [{default}]: ").strip()
-    return raw or default
-
-
 def main():
     print(f"Audio-SpectraCLI launcher — detected {detect_os_label()}, Python {platform.python_version()}\n")
 
     ensure_dependencies_or_relaunch_in_venv()
     device = choose_audio_device()
 
-    print()
-    duration = prompt_int("Duration (seconds)", 10)
-    fs = prompt_int("Sampling rate (Hz)", 44100)
-    block_size = prompt_int("Block size", 4096)
-    color = prompt_str("Color", "blue")
-
     from PyQt5.QtWidgets import QApplication
 
     from Audio_SpectraCLI import AudioSpectrumVisualizer
 
+    # Duration/sampling rate/block size are intentionally NOT asked here —
+    # the GUI already has sliders for all three once it's open, so asking
+    # again in the terminal first would just be a second, redundant prompt
+    # for the same settings.
     app = QApplication(sys.argv)
-    window = AudioSpectrumVisualizer(duration=duration, fs=fs, block_size=block_size, color=color, device=device)
+    window = AudioSpectrumVisualizer(device=device)
     window.show()
     window.toggle_visualization()  # start immediately — no extra click needed
     sys.exit(app.exec_())

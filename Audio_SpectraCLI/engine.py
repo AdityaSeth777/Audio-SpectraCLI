@@ -17,8 +17,12 @@ class AudioSpectrumEngine:
 
     `on_spectrum(freq_bins, spectrum, max_magnitude)` is invoked from a
     background thread for every audio block whose peak magnitude clears
-    `noise_threshold`. Callers that touch UI state from `on_spectrum` are
-    responsible for their own thread-safety (e.g. Qt signals).
+    `noise_threshold` — potentially dozens of times per second with real
+    audio. Callers that touch UI state from `on_spectrum` are responsible
+    for their own thread-safety, and should avoid doing slow work (like a
+    GUI redraw) directly in the callback — main.py stashes the latest frame
+    and redraws from a fixed-rate timer instead, rather than redrawing on
+    every single call.
     """
 
     def __init__(
@@ -58,7 +62,13 @@ class AudioSpectrumEngine:
 
             if max_magnitude > self.noise_threshold:
                 freq_bins = np.fft.rfftfreq(self.block_size, 1 / self.fs)
-                self.on_spectrum(freq_bins, spectrum, max_magnitude)
+                try:
+                    self.on_spectrum(freq_bins, spectrum, max_magnitude)
+                except Exception as exc:
+                    # A raising callback must not kill this background
+                    # thread silently (the whole engine would appear to
+                    # "freeze" with no further updates and no visible error).
+                    print(f"Audio-SpectraCLI: on_spectrum callback raised: {exc}")
 
     def start(self):
         if self.running:
@@ -66,7 +76,12 @@ class AudioSpectrumEngine:
         self.running = True
         sd.default.samplerate = self.fs
         sd.default.channels = 1
-        self.stream = sd.InputStream(device=self.device, callback=self._audio_callback)
+        # blocksize is deliberately tied to block_size: leaving it at
+        # PortAudio's default (None) lets it choose its own, often much
+        # smaller, callback chunk size, causing on_spectrum to fire far more
+        # often than "once per block_size samples" — under sustained real
+        # audio this is what actually overwhelms a per-callback GUI redraw.
+        self.stream = sd.InputStream(device=self.device, blocksize=self.block_size, callback=self._audio_callback)
         self.stream.start()
         self._worker_thread = threading.Thread(target=self._process_audio, daemon=True)
         self._worker_thread.start()

@@ -2,7 +2,8 @@
 engine.py extraction - construct the window, start visualization (with
 sounddevice mocked out, since this sandbox has no audio hardware), inject a
 synthetic spectrum through the engine's callback path, and confirm it reaches
-the plot via the Qt signal, then stop cleanly.
+the plot via the fixed-rate render timer (not a direct per-block redraw -
+see main.py's RENDER_INTERVAL_MS), then stop cleanly.
 
 Run with: QT_QPA_PLATFORM=offscreen python -m pytest tests/test_gui_smoke.py
 """
@@ -33,8 +34,8 @@ def test_visualizer_starts_stops_and_receives_spectrum_via_engine():
         fake_stream.start.assert_called_once()
 
         # Drive one real block through the engine's actual FFT/smoothing path
-        # (not mocked) to confirm the Qt signal wiring still delivers frames
-        # to update_plot, exactly as the original single-file version did.
+        # (not mocked) to confirm the render-timer wiring still delivers
+        # frames to update_plot, exactly as the original single-file version did.
         t = np.linspace(0, 1, window.engine.block_size, endpoint=False)
         loud_block = np.sin(2 * np.pi * 440 * t).astype(np.float32).reshape(-1, 1)
         window.engine.audio_queue.put(loud_block)
@@ -50,5 +51,20 @@ def test_visualizer_starts_stops_and_receives_spectrum_via_engine():
         assert window.engine is None
         fake_stream.stop.assert_called_once()
         fake_stream.close.assert_called_once()
+
+    window.close()
+
+
+def test_render_error_is_caught_not_fatal():
+    """A raising update_plot must never crash the process.
+
+    This is the actual bug reported in production: some PyQt5/sip builds
+    treat an unhandled exception escaping a Qt slot as fatal (abort()), so
+    _render_latest_frame must catch, not just hope nothing ever raises.
+    """
+    window = AudioSpectrumVisualizer(duration=5, fs=22050, block_size=1024, color="red")
+
+    window._latest_frame = ("not", "valid", "frame-data")  # guaranteed to raise inside update_plot
+    window._render_latest_frame()  # must not raise
 
     window.close()
